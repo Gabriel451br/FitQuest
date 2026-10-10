@@ -22,16 +22,40 @@ setCustomFoods(state.customFoods);
 const subs = new Set();
 let saveTimer = null;
 
-function persist() {
+let dirty = false;
+
+function flush() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(state));
-    } catch (e) {
-      console.error('Falha ao salvar', e);
-    }
-  }, 150);
+  if (!dirty) return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    dirty = false;
+  } catch (e) {
+    console.error('Falha ao salvar', e);
+  }
 }
+
+function persist() {
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flush, 150);
+}
+
+// Grava na hora se o app for fechado/minimizado antes do debounce.
+addEventListener('pagehide', flush);
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush());
+
+// Pede ao navegador armazenamento persistente (não é apagado sob pouco espaço).
+export async function requestPersistence() {
+  try {
+    if (!navigator.storage?.persist) return null;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return null;
+  }
+}
+requestPersistence();
 
 export function getState() {
   return state;

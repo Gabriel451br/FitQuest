@@ -1,6 +1,6 @@
 // CONFIGURAÇÕES: perfil, aparência, opções de treino e backup.
-import { html, useState } from '../lib.js';
-import { update, replaceState, getState, emptyState } from '../store.js';
+import { html, useState, useEffect } from '../lib.js';
+import { update, replaceState, getState, emptyState, requestPersistence } from '../store.js';
 import { allPhotos, putPhoto } from '../photos.js';
 import { Field, NumInput, Seg, Check, toast, confirmDialog } from '../ui.js';
 import { go } from '../nav.js';
@@ -11,6 +11,12 @@ export function SettingsView({ s }) {
   const setP = (k) => (v) => update((st) => { st.profile[k] = v; });
   const setS = (k) => (v) => update((st) => { st.settings[k] = v; });
   const [withPhotos, setWithPhotos] = useState(true);
+  const [persisted, setPersisted] = useState(null);
+  const [usage, setUsage] = useState(null);
+  useEffect(() => {
+    navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
+    navigator.storage?.estimate?.().then((e) => setUsage(e.usage)).catch(() => {});
+  }, []);
 
   const exportData = async () => {
     const data = { ...getState(), exportedAt: new Date().toISOString() };
@@ -76,7 +82,12 @@ export function SettingsView({ s }) {
 
       <section class="card stack-sm">
         <h3 class="up">Backup</h3>
-        <p class="small muted">Seus dados ficam só neste aparelho/navegador. Exporte com frequência para não perder nada ao trocar de celular ou limpar o navegador.</p>
+        <div class="row-sb small">
+          <span>Armazenamento ${persisted ? html`<span class="tag acc">Persistente</span>` : html`<span class="tag">Padrão</span>`}</span>
+          <span class="mono muted">${usage != null ? `${(usage / 1048576).toFixed(1)} MB usados` : ''}</span>
+        </div>
+        ${!persisted && html`<button class="btn sm" onClick=${async () => setPersisted(await requestPersistence())}>Proteger dados contra limpeza automática</button>`}
+        <p class="small muted">Dieta, treinos, avaliações, fotos e XP são salvos automaticamente neste aparelho/navegador e funcionam offline. Instale o app (Adicionar à tela inicial) para máxima proteção. Exporte com frequência para não perder nada ao trocar de celular ou limpar o navegador.</p>
         <${Check} checked=${withPhotos} onChange=${setWithPhotos}>Incluir fotos no backup<//>
         <div class="grid-2">
           <button class="btn dark" onClick=${exportData}>Exportar</button>

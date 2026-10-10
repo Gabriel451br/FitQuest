@@ -34,6 +34,13 @@ Acompanhe e **gamifique** sua jornada fitness: treino, dieta, avaliação físic
 - Fotos de progresso (frente/lado/costas) guardadas no aparelho e comparação **antes × depois**.
 - Gráficos de peso (com média móvel) e % de gordura.
 
+**Social**
+- Adicione amigos pelo nome de usuário (pedido → aceite).
+- Feed com os treinos dos amigos (exercícios, melhores séries, volume, PRs, cardio) e curtidas (“Boa!”); copie o treino de um amigo para sua rotina.
+- Ranking entre amigos ou geral: XP, XP/treinos/volume/km da semana, 1RM de supino, agachamento, terra e desenvolvimento, sequência.
+- Perfil do amigo com **Duelo** (semana e total), comparação de cargas exercício a exercício e histórico de treinos.
+- Privacidade: dieta, peso, medidas e fotos nunca são compartilhados; dá para sair do ranking geral e parar de compartilhar treinos (Ajustes → Social).
+
 **Jornada**
 - Curva de níveis com títulos, histórico de XP, mapa de constância, objetivos pessoais (peso, BF, carga, livre) e 25 conquistas.
 - O XP é **derivado dos registros** (não acumulado): editar/apagar ajusta tudo — sem XP duplicado.

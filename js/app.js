@@ -14,6 +14,8 @@ import { DietView } from './views/diet.js';
 import { BodyView } from './views/body.js';
 import { JourneyView } from './views/journey.js';
 import { SettingsView } from './views/settings.js';
+import { SocialView } from './views/social.js';
+import './social.js';
 
 const TABS = [
   ['hoje', 'Hoje', 'today'],
@@ -21,6 +23,7 @@ const TABS = [
   ['dieta', 'Dieta', 'diet'],
   ['corpo', 'Corpo', 'body'],
   ['jornada', 'Jornada', 'trophy'],
+  ['social', 'Social', 'users'],
 ];
 
 function parseHash() {
@@ -141,6 +144,7 @@ function App() {
     case 'corpo': view = html`<${BodyView} s=${s} params=${params} today=${today} />`; break;
     case 'jornada': view = html`<${JourneyView} s=${s} game=${game} today=${today} />`; break;
     case 'config': view = html`<${SettingsView} s=${s} />`; break;
+    case 'social': view = html`<${SocialView} s=${s} />`; break;
     default: view = html`<${TodayView} s=${s} game=${game} today=${today} />`;
   }
 

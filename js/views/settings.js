@@ -72,6 +72,15 @@ export function SettingsView({ s }) {
         <p class="tiny muted">Objetivo e nível de atividade ficam em Dieta → Metas.</p>
       </section>
 
+      ${cloudEnabled && html`
+        <section class="card stack-sm">
+          <h3 class="up">Social</h3>
+          <${Check} checked=${s.settings.socialPublic !== false} onChange=${setS('socialPublic')}>Aparecer no ranking geral (nível, XP, cargas)<//>
+          <${Check} checked=${s.settings.socialShareWorkouts !== false} onChange=${setS('socialShareWorkouts')}>Compartilhar meus treinos com amigos<//>
+          <p class="tiny muted">Dieta, peso, medidas e fotos nunca são compartilhados. Com o ranking desligado, só amigos veem seu resumo.</p>
+        </section>
+      `}
+
       <section class="card stack-sm">
         <h3 class="up">Aparência</h3>
         <${Seg} value=${s.settings.theme} onChange=${setS('theme')} options=${[['auto', 'Auto'], ['light', 'Claro'], ['dark', 'Escuro']]} />

@@ -1,11 +1,11 @@
 // Service worker: rede primeiro (versão sempre atual) com cache para uso offline.
-const VERSION = 'fitquest-v2.5.0';
+const VERSION = 'fitquest-v2.6.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css', './icons/icon.svg',
   './vendor/preact.js', './vendor/preact-hooks.js', './vendor/htm.js', './vendor/supabase.js', './js/config.js', './js/cloud.js', './js/views/auth.js',
   './js/app.js', './js/lib.js', './js/nav.js', './js/store.js', './js/selectors.js', './js/calc.js',
   './js/util.js', './js/foods.js', './js/game.js', './js/training.js', './js/dietgen.js',
-  './js/photos.js', './js/cardio.js', './js/views/cardio.js', './js/ui.js', './js/charts.js', './js/actions.js',
+  './js/photos.js', './js/cardio.js', './js/views/cardio.js', './js/ui.js', './js/charts.js', './js/actions.js', './js/social.js', './js/views/social.js',
   './js/data/taco.js', './js/data/exercises.js',
   './js/views/onboarding.js', './js/views/today.js', './js/views/training.js', './js/views/diet.js',
   './js/views/body.js', './js/views/journey.js', './js/views/settings.js',

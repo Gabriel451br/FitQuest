@@ -38,9 +38,17 @@ function useObservable(get) {
 export const useAuth = () => useObservable(() => auth);
 export const useSync = () => useObservable(() => sync);
 
+// Avisados após cada sincronização bem-sucedida (ex.: publicar resumo social).
+const syncedHooks = new Set();
+export function onSynced(fn) {
+  syncedHooks.add(fn);
+  return () => syncedHooks.delete(fn);
+}
+
 function setSync(patch) {
   sync = { ...sync, ...patch };
   notify();
+  if (patch.status === 'ok' && user) syncedHooks.forEach((h) => { try { h(user); } catch (e) { console.warn(e); } });
 }
 
 // --- Erros em português --------------------------------------------------------------
@@ -258,4 +266,5 @@ if (cloudEnabled) {
   sb.auth.onAuthStateChange((_event, session) => onUser(session?.user ?? null));
 }
 
+export const currentUserId = () => auth.user?.id ?? null;
 export const currentUsername = () => auth.user?.user_metadata?.username ?? auth.user?.email ?? '';

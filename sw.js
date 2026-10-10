@@ -1,5 +1,5 @@
 // Service worker: app shell offline (stale-while-revalidate).
-const VERSION = 'fitquest-v2.2.0';
+const VERSION = 'fitquest-v2.3.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css', './icons/icon.svg',
   './vendor/preact.js', './vendor/preact-hooks.js', './vendor/htm.js', './vendor/supabase.js', './js/config.js', './js/cloud.js', './js/views/auth.js',

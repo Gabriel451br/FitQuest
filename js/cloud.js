@@ -47,6 +47,7 @@ function setSync(patch) {
 
 function friendly(error) {
   const m = String(error?.message ?? error ?? '').toLowerCase();
+  if (m.includes('database error saving new user')) return 'Não foi possível criar a conta (usuário já em uso?). Tente outro nome.';
   if (m.includes('invalid login')) return 'Usuário ou senha incorretos.';
   if (m.includes('email not confirmed')) return 'Confirme seu e-mail pelo link que enviamos antes de entrar.';
   if (m.includes('already registered') || m.includes('already been registered')) return 'Este e-mail já tem conta. Faça login.';

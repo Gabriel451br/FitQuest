@@ -517,3 +517,7 @@ input, select, textarea { font-size: max(16px, 1em); }
 .rm-table td { padding: 7px 4px; border-bottom: 1.5px solid color-mix(in srgb, var(--line) 20%, transparent); }
 
 .net-chip { font-family: var(--mono); font-weight: 700; font-size: 10.5px; border: var(--bw) solid var(--line); padding: 5px 6px; background: var(--danger); color: #fff; }
+
+.col-arrows { display: flex; flex-direction: column; gap: 2px; }
+.col-arrows .x-btn { height: 22px; }
+button:disabled { opacity: .35; pointer-events: none; }

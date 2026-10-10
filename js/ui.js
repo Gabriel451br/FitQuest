@@ -43,27 +43,37 @@ export function Icon({ name, size = 20 }) {
 }
 
 // --- Modal (bottom sheet) ----------------------------------------------------
-let modalHost = null;
+// Janelas empilháveis: cada uma tem seu próprio container, então abrir uma
+// (ex.: escolher exercício) por cima de outra (editar treino) preserva a de baixo.
+const modalStack = [];
 
 export function openModal(renderFn) {
-  if (!modalHost) {
-    modalHost = document.createElement('div');
-    document.body.appendChild(modalHost);
-  }
-  const close = () => render(null, modalHost);
-  render(html`<${ModalRoot} key=${Math.random()} renderFn=${renderFn} close=${close} />`, modalHost);
+  const host = document.createElement('div');
+  host.className = 'modal-layer';
+  host.style.position = 'relative';
+  host.style.zIndex = String(100 + modalStack.length);
+  document.body.appendChild(host);
+  modalStack.push(host);
+  document.body.style.overflow = 'hidden';
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    render(null, host);
+    host.remove();
+    modalStack.splice(modalStack.indexOf(host), 1);
+    if (!modalStack.length) document.body.style.overflow = '';
+  };
+  render(html`<${ModalRoot} renderFn=${renderFn} close=${close} host=${host} />`, host);
   return close;
 }
 
-function ModalRoot({ renderFn, close }) {
+function ModalRoot({ renderFn, close, host }) {
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && close();
+    // Esc fecha só a janela do topo
+    const onKey = (e) => e.key === 'Escape' && modalStack[modalStack.length - 1] === host && close();
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, []);
   return renderFn(close);
 }

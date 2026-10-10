@@ -6,7 +6,7 @@ import { exerciseHistory, lastPerformance, bestE1rm, computePRs, sessionStats, w
 import { pctOf1rm, loadForPct, oneRmEstimates, repsAtPct } from '../calc.js';
 import { Icon, openModal, Sheet, Field, Seg, Check, NumInput, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
 import { LineChart } from '../charts.js';
-import { startSession, nextWorkout, deleteSession, deleteWorkout } from '../actions.js';
+import { startSession, nextWorkout, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
 import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
 import { CardioHome, CardioLive } from './cardio.js';
 import { go } from '../nav.js';
@@ -64,6 +64,7 @@ function TrainingHome({ s, today }) {
 // --- Rotina -------------------------------------------------------------------
 
 function RoutineTab({ s, today }) {
+  const [reorder, setReorder] = useState(false);
   const nw = nextWorkout(s);
   const workouts = s.workouts.filter((w) => (w.type ?? 'strength') === 'strength');
   if (!workouts.length) {
@@ -85,19 +86,25 @@ function RoutineTab({ s, today }) {
   return html`
     <div class="stack">
       <div class="list">
-        ${workouts.map((w) => html`
+        ${workouts.map((w, wi) => html`
           <div class="li" key=${w.id}>
             <div class="grow">
               <div class="row"><span class="t">${w.name}</span>${nw?.id === w.id && html`<span class="tag acc">Próximo</span>`}</div>
               <div class="s">${w.exercises.length} exercícios · ${w.exercises.reduce((a, e) => a + (e.sets || 0), 0)} séries · ${[...new Set(w.exercises.map((e) => MUSCLES[exerciseById(s, e.exId).primary]))].slice(0, 4).join(', ')}</div>
             </div>
-            <button class="icon-btn" onClick=${() => editWorkout(s, w)} aria-label="Editar"><${Icon} name="edit" /></button>
-            <button class="icon-btn" onClick=${() => deleteWorkout(w)} aria-label="Excluir treino"><${Icon} name="trash" /></button>
-            <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" /><span class="hide-xs">Iniciar</span></button>
+            ${reorder
+              ? html`
+                <button class="icon-btn" onClick=${() => moveWorkout(w.id, -1)} disabled=${wi === 0} aria-label="Subir">↑</button>
+                <button class="icon-btn" onClick=${() => moveWorkout(w.id, 1)} disabled=${wi === workouts.length - 1} aria-label="Descer">↓</button>`
+              : html`
+                <button class="icon-btn" onClick=${() => editWorkout(s, w)} aria-label="Editar"><${Icon} name="edit" /></button>
+                <button class="icon-btn" onClick=${() => deleteWorkout(w)} aria-label="Excluir treino"><${Icon} name="trash" /></button>
+                <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" /><span class="hide-xs">Iniciar</span></button>`}
           </div>
         `)}
       </div>
       <div class="row wrap">
+        ${workouts.length > 1 && html`<button class=${`btn ${reorder ? 'primary' : ''}`} onClick=${() => setReorder(!reorder)}>${reorder ? 'Concluir' : '↕ Reordenar'}</button>`}
         <button class="btn" onClick=${() => editWorkout(s, null)}><${Icon} name="plus" />Novo treino</button>
         <button class="btn ghost" onClick=${() => startSession(null, today)}>Treino livre</button>
       </div>
@@ -133,7 +140,7 @@ function WorkoutEditor({ workout, close }) {
     [a[i], a[j]] = [a[j], a[i]];
     setItems(a);
   };
-  const patch = (i, k, v) => setItems(items.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
+  const patch = (i, k, v) => setItems((cur) => cur.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
   const save = () => {
     if (!name.trim()) return toast('Dê um nome ao treino');
     update((s) => {
@@ -152,15 +159,18 @@ function WorkoutEditor({ workout, close }) {
       <button class="btn primary grow" onClick=${save}>Salvar</button>
     `}>
       <${Field} label="Nome"><input class="input" value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Ex.: Upper A, Peito/Tríceps" /><//>
+      <div class="row-sb"><span class="eyebrow">${items.length} exercício${items.length === 1 ? '' : 's'}</span></div>
+      ${!items.length && html`<p class="small muted">Nenhum exercício ainda. Toque em “Adicionar exercício”.</p>`}
       <div class="stack-sm">
         ${items.map((it, i) => html`
-          <div class="card flat tight" key=${it.exId + i}>
+          <div class="card flat tight" key=${i + ':' + it.exId}>
             <div class="row-sb">
-              <b class="small">${exerciseById(sAll, it.exId).name}</b>
+              <b class="small grow" style="min-width:0">${i + 1}. ${exerciseById(sAll, it.exId).name}</b>
               <div class="row" style="gap:4px">
-                <button class="x-btn" onClick=${() => move(i, -1)} aria-label="Subir">↑</button>
-                <button class="x-btn" onClick=${() => move(i, 1)} aria-label="Descer">↓</button>
-                <button class="x-btn" onClick=${() => setItems(items.filter((_, idx) => idx !== i))} aria-label="Remover">×</button>
+                <button class="x-btn" onClick=${() => move(i, -1)} disabled=${i === 0} aria-label="Subir">↑</button>
+                <button class="x-btn" onClick=${() => move(i, 1)} disabled=${i === items.length - 1} aria-label="Descer">↓</button>
+                <button class="x-btn" onClick=${() => pickExercise((exId) => patch(i, 'exId', exId))} aria-label="Trocar exercício" title="Trocar exercício"><${Icon} name="swap" size="14" /></button>
+                <button class="x-btn" onClick=${() => setItems((cur) => cur.filter((_, idx) => idx !== i))} aria-label="Remover">×</button>
               </div>
             </div>
             <div class="grid-3" style="margin-top:8px">

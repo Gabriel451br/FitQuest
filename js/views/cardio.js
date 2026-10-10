@@ -7,7 +7,7 @@ import {
 } from '../cardio.js';
 import { Icon, openModal, Sheet, Field, NumInput, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
 import { LineChart, BarChart } from '../charts.js';
-import { startSession, deleteSession, deleteWorkout } from '../actions.js';
+import { startSession, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
 import { go } from '../nav.js';
 import { dateKey, uid, num, weekdayShort, addDays, weekStart, parseKey } from '../util.js';
 
@@ -85,12 +85,13 @@ function PlannedTab({ s, type, today }) {
       ${list.length
         ? html`
           <div class="list">
-            ${list.map((w) => html`
+            ${list.map((w, wi) => html`
               <div class="li" key=${w.id}>
                 <div class="grow">
                   <div class="row wrap" style="gap:6px"><span class="t">${w.name}</span>${w.kind && html`<span class="tag">${w.kind}</span>`}</div>
                   <div class="s mono">${targetText(type, w.target) || 'Sem meta'}${w.notes ? ` · ${w.notes}` : ''}</div>
                 </div>
+                ${list.length > 1 && html`<div class="col-arrows"><button class="x-btn" onClick=${() => moveWorkout(w.id, -1)} disabled=${wi === 0} aria-label="Subir">↑</button><button class="x-btn" onClick=${() => moveWorkout(w.id, 1)} disabled=${wi === list.length - 1} aria-label="Descer">↓</button></div>`}
                 <button class="icon-btn" aria-label="Editar" onClick=${() => openCardioWorkout(type, w)}><${Icon} name="edit" /></button>
                 <button class="icon-btn" aria-label="Excluir treino" onClick=${() => deleteWorkout(w)}><${Icon} name="trash" /></button>
                 <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" /><span class="hide-xs">Iniciar</span></button>

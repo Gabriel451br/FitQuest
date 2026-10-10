@@ -70,6 +70,19 @@ export async function deleteWorkout(w) {
   return true;
 }
 
+// Move um treino para cima/baixo entre os da mesma categoria (mantém os demais no lugar).
+export function moveWorkout(id, dir) {
+  update((st) => {
+    const i = st.workouts.findIndex((w) => w.id === id);
+    if (i < 0) return;
+    const type = st.workouts[i].type ?? 'strength';
+    let j = i + dir;
+    while (j >= 0 && j < st.workouts.length && (st.workouts[j].type ?? 'strength') !== type) j += dir;
+    if (j < 0 || j >= st.workouts.length) return;
+    [st.workouts[i], st.workouts[j]] = [st.workouts[j], st.workouts[i]];
+  });
+}
+
 export function startSession(workout, date = dateKey()) {
   const s = getState();
   if (s.activeSessionId && s.sessions.some((x) => x.id === s.activeSessionId && !x.finishedAt)) {

@@ -1,0 +1,144 @@
+// Shell do app: roteamento por hash, barra superior, navegação e feedback de XP.
+import { html, render, useEffect, useRef, useState } from './lib.js';
+import { useStore, getState } from './store.js';
+import { computeGame } from './game.js';
+import { Icon, toast } from './ui.js';
+import { dateKey } from './util.js';
+import { go } from './nav.js';
+import { Onboarding } from './views/onboarding.js';
+import { TodayView } from './views/today.js';
+import { TrainingView } from './views/training.js';
+import { DietView } from './views/diet.js';
+import { BodyView } from './views/body.js';
+import { JourneyView } from './views/journey.js';
+import { SettingsView } from './views/settings.js';
+
+const TABS = [
+  ['hoje', 'Hoje', 'today'],
+  ['treino', 'Treino', 'train'],
+  ['dieta', 'Dieta', 'diet'],
+  ['corpo', 'Corpo', 'body'],
+  ['jornada', 'Jornada', 'trophy'],
+];
+
+function parseHash() {
+  const [route, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+  return { route: route || 'hoje', params: rest };
+}
+
+function useRoute() {
+  const [r, set] = useState(parseHash());
+  useEffect(() => {
+    const on = () => {
+      set(parseHash());
+      window.scrollTo(0, 0);
+    };
+    addEventListener('hashchange', on);
+    return () => removeEventListener('hashchange', on);
+  }, []);
+  return r;
+}
+
+function useTheme(theme) {
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', theme);
+    const dark = theme === 'dark' || (theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0d0d0d' : '#f1efe8');
+  }, [theme]);
+}
+
+// Mostra "+XP" e "LEVEL UP" quando o XP derivado sobe.
+function useXpFeedback(game) {
+  const prev = useRef(null);
+  useEffect(() => {
+    const p = prev.current;
+    prev.current = { xp: game.totalXp, level: game.level.level, ach: game.achievements.filter((a) => a.unlocked).map((a) => a.id) };
+    if (!p) return;
+    const gained = game.totalXp - p.xp;
+    if (gained > 0) toast(`+${gained} XP`, 'xp');
+    if (game.level.level > p.level) setTimeout(() => toast(`LEVEL UP → LV ${game.level.level} · ${game.level.title.toUpperCase()}`, 'xp'), 400);
+    const newAch = game.achievements.filter((a) => a.unlocked && !p.ach.includes(a.id));
+    newAch.forEach((a, i) => setTimeout(() => toast(`CONQUISTA: ${a.name.toUpperCase()}`), 800 + i * 400));
+  }, [game.totalXp]);
+}
+
+function TopBar({ game }) {
+  const lv = game.level;
+  return html`
+    <header class="topbar">
+      <div class="topbar-in">
+        <button class="brand" onClick=${() => go('hoje')} aria-label="Início">
+          <span class="brand-mark">FQ</span><span>FitQuest</span>
+        </button>
+        <div class="spacer"></div>
+        <button class="lvl-chip" onClick=${() => go('jornada')} aria-label=${`Nível ${lv.level}`} style="cursor:pointer">
+          <span class="lv">LV ${lv.level}</span>
+          <span class="track"><i style=${`width:${Math.round(lv.pct * 100)}%`}></i></span>
+        </button>
+        <span class=${`streak-chip ${game.streak > 0 ? 'on' : ''}`} title="Sequência de dias ativos">${game.streak}D</span>
+        <button class="icon-btn" onClick=${() => go('config')} aria-label="Configurações"><${Icon} name="gear" /></button>
+      </div>
+    </header>
+  `;
+}
+
+function Nav({ route }) {
+  return html`
+    <nav class="nav" aria-label="Principal">
+      <div class="nav-in">
+        ${TABS.map(([key, label, icon]) => html`
+          <button class=${route === key ? 'on' : ''} onClick=${() => go(key)} aria-current=${route === key ? 'page' : null}>
+            <${Icon} name=${icon} /><span>${label}</span>
+          </button>
+        `)}
+      </div>
+    </nav>
+  `;
+}
+
+function App() {
+  const s = useStore();
+  const { route, params } = useRoute();
+  useTheme(s.settings.theme);
+  const [today, setToday] = useState(dateKey());
+
+  // Vira o dia automaticamente se o app ficar aberto.
+  useEffect(() => {
+    const t = setInterval(() => setToday(dateKey()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const game = computeGame(s, today);
+  useXpFeedback(game);
+
+  if (!s.profile) return html`<${Onboarding} />`;
+
+  let view;
+  switch (route) {
+    case 'treino': view = html`<${TrainingView} s=${s} params=${params} today=${today} />`; break;
+    case 'dieta': view = html`<${DietView} s=${s} params=${params} today=${today} />`; break;
+    case 'corpo': view = html`<${BodyView} s=${s} params=${params} today=${today} />`; break;
+    case 'jornada': view = html`<${JourneyView} s=${s} game=${game} today=${today} />`; break;
+    case 'config': view = html`<${SettingsView} s=${s} />`; break;
+    default: view = html`<${TodayView} s=${s} game=${game} today=${today} />`;
+  }
+
+  return html`
+    <div class="shell">
+      <${TopBar} game=${game} />
+      <main class="main">${view}</main>
+      <${Nav} route=${route} />
+    </div>
+  `;
+}
+
+render(html`<${App} />`, document.getElementById('app'));
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+
+// Expor para depuração no console.
+window.fitquest = { getState };

@@ -1,5 +1,5 @@
-// Service worker: app shell offline (stale-while-revalidate).
-const VERSION = 'fitquest-v2.4.1';
+// Service worker: rede primeiro (versão sempre atual) com cache para uso offline.
+const VERSION = 'fitquest-v2.5.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css', './icons/icon.svg',
   './vendor/preact.js', './vendor/preact-hooks.js', './vendor/htm.js', './vendor/supabase.js', './js/config.js', './js/cloud.js', './js/views/auth.js',
@@ -25,16 +25,23 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
   if (url.origin === location.origin) {
-    // HTML: rede primeiro. Demais arquivos: cache imediato + atualização em segundo plano.
-    if (e.request.mode === 'navigate') {
-      e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
-      return;
-    }
+    // Rede primeiro (sempre a versão mais nova quando há internet); sem rede, usa o cache.
+    // Timeout curto para não travar em conexão ruim.
     e.respondWith(
       caches.open(VERSION).then(async (c) => {
-        const hit = await c.match(e.request);
-        const net = fetch(e.request).then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
-        return hit || net;
+        const key = e.request.mode === 'navigate' ? './index.html' : e.request;
+        try {
+          const r = await Promise.race([
+            fetch(e.request, { cache: 'no-cache' }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000)),
+          ]);
+          if (r.ok) c.put(key, r.clone());
+          return r;
+        } catch {
+          const hit = await c.match(key);
+          if (hit) return hit;
+          throw new Error('offline sem cache');
+        }
       }),
     );
     return;

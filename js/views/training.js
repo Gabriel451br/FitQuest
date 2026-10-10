@@ -129,10 +129,50 @@ function editWorkout(s, w) {
   openModal((close) => html`<${WorkoutEditor} workout=${w} close=${close} />`);
 }
 
+// Rascunho do editor: se a janela fechar sem salvar, nada se perde.
+const DRAFT_KEY = 'fitquest.workoutDraft';
+const readDraft = (id) => {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    return d && d.id === (id ?? null) ? d : null;
+  } catch {
+    return null;
+  }
+};
+const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } };
+
+// Aplica a rotina editada ao treino em andamento: mantém o que já foi registrado,
+// adiciona os exercícios novos e remove só os que ainda não têm série feita.
+export function syncSessionWithRoutine(ses, routineExercises) {
+  const pool = [...ses.exercises];
+  const next = routineExercises.map((r) => {
+    const k = pool.findIndex((e) => e.exId === r.exId);
+    if (k >= 0) {
+      const e = pool.splice(k, 1)[0];
+      const done = e.sets.filter((x) => x.done).length;
+      while (e.sets.length < Math.max(r.sets || 0, done)) e.sets.push(newSet());
+      while (e.sets.length > Math.max(r.sets || 0, done, 1) && !e.sets[e.sets.length - 1].done && e.sets[e.sets.length - 1].kg == null) e.sets.pop();
+      return { ...e, target: r.reps, rest: r.rest ?? e.rest, targetRpe: r.targetRpe ?? e.targetRpe, targetPct: r.targetPct ?? e.targetPct, targetKg: r.targetKg ?? e.targetKg };
+    }
+    return {
+      exId: r.exId, target: r.reps, rest: r.rest ?? 90, targetRpe: r.targetRpe ?? null, targetPct: r.targetPct ?? null, targetKg: r.targetKg ?? null,
+      sets: Array.from({ length: r.sets || 3 }, () => newSet()),
+    };
+  });
+  // exercícios que saíram da rotina mas já têm séries feitas continuam no treino
+  const kept = pool.filter((e) => e.sets.some((x) => x.done));
+  ses.exercises = [...next, ...kept];
+}
+
 function WorkoutEditor({ workout, close }) {
-  const [name, setName] = useState(workout?.name ?? '');
-  const [items, setItems] = useState(workout?.exercises ?? []);
+  const draft = readDraft(workout?.id);
+  const [name, setName] = useState(draft?.name ?? workout?.name ?? '');
+  const [items, setItems] = useState(draft?.items ?? workout?.exercises ?? []);
   const sAll = getState();
+  useEffect(() => { if (draft) toast('Rascunho recuperado'); }, []);
+  useEffect(() => {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ id: workout?.id ?? null, name, items })); } catch { /* ignore */ }
+  }, [name, items]);
   const move = (i, d) => {
     const j = i + d;
     if (j < 0 || j >= items.length) return;
@@ -141,23 +181,34 @@ function WorkoutEditor({ workout, close }) {
     setItems(a);
   };
   const patch = (i, k, v) => setItems((cur) => cur.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
+  const active = workout && sAll.sessions.find((x) => x.id === sAll.activeSessionId && !x.finishedAt && x.workoutId === workout.id);
   const save = () => {
     if (!name.trim()) return toast('Dê um nome ao treino');
     update((s) => {
       const data = { name: name.trim(), exercises: items };
       if (workout) Object.assign(s.workouts.find((x) => x.id === workout.id), data);
       else s.workouts.push({ id: uid(), type: 'strength', ...data });
+      const ses = workout && s.sessions.find((x) => x.id === s.activeSessionId && !x.finishedAt && x.workoutId === workout.id);
+      if (ses) syncSessionWithRoutine(ses, items);
     });
+    clearDraft();
+    if (active) toast('Treino em andamento atualizado');
+    close();
+  };
+  const cancel = () => {
+    clearDraft();
     close();
   };
   const remove = async () => {
-    if (await deleteWorkout(workout)) close();
+    if (await deleteWorkout(workout)) { clearDraft(); close(); }
   };
   return html`
     <${Sheet} title=${workout ? 'Editar treino' : 'Novo treino'} onClose=${close} footer=${html`
       ${workout && html`<button class="btn danger" onClick=${remove}><${Icon} name="trash" />Excluir</button>`}
       <button class="btn primary grow" onClick=${save}>Salvar</button>
     `}>
+      ${draft && html`<div class="row-sb small"><span class="muted">Rascunho não salvo recuperado.</span><button class="link-btn" onClick=${cancel}>Descartar</button></div>`}
+      ${active && html`<div class="callout small" style="border-left-color:var(--accent)">Este treino está em andamento: ao salvar, as mudanças entram nele também (séries já feitas são mantidas).</div>`}
       <${Field} label="Nome"><input class="input" value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Ex.: Upper A, Peito/Tríceps" /><//>
       <div class="row-sb"><span class="eyebrow">${items.length} exercício${items.length === 1 ? '' : 's'}</span></div>
       ${!items.length && html`<p class="small muted">Nenhum exercício ainda. Toque em “Adicionar exercício”.</p>`}
@@ -358,7 +409,10 @@ function SessionView({ s, ses }) {
       ${!editing && html`<${SessionBar} ses=${ses} st=${st} onFinish=${finish} />`}
       <div class="page-head">
         <div class="grow">
-          <button class="link-btn small" onClick=${() => go('treino')}>← Treino</button>
+          <div class="row-sb">
+            <button class="link-btn small" onClick=${() => go('treino')}>← Treino</button>
+            ${!editing && ses.workoutId && s.workouts.some((w) => w.id === ses.workoutId) && html`<button class="link-btn small" onClick=${() => editWorkout(s, s.workouts.find((w) => w.id === ses.workoutId))}>✎ Editar rotina</button>`}
+          </div>
           <input class="input title-input" value=${ses.name} onInput=${(e) => patchSession(ses.id, (x) => (x.name = e.target.value))} aria-label="Nome do treino" />
           ${editing && html`<div class="row small mono muted"><span>${fmtDate(ses.date, { year: true })} · ${st.sets} séries · ${num(st.volume)} kg</span></div>`}
         </div>

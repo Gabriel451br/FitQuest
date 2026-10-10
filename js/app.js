@@ -156,7 +156,20 @@ function App() {
 render(html`<${App} />`, document.getElementById('app'));
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  // Quando uma versão nova do app assume, recarrega uma vez para usá-la já.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    location.reload();
+  });
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+      // app instalado no iPhone quase nunca "reinicia": verifica atualização ao voltar para ele
+      document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && reg.update().catch(() => {}));
+    }).catch(() => {});
+  });
 }
 
 // Expor para depuração no console.

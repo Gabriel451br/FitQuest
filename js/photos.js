@@ -25,9 +25,41 @@ async function tx(mode, fn) {
   });
 }
 
-export const putPhoto = (rec) => tx('readwrite', (s) => s.put(rec));
-export const getPhoto = (id) => tx('readonly', (s) => s.get(id));
-export const deletePhoto = (id) => tx('readwrite', (s) => s.delete(id));
+const local = {
+  put: (rec) => tx('readwrite', (s) => s.put(rec)),
+  get: (id) => tx('readonly', (s) => s.get(id)),
+  del: (id) => tx('readwrite', (s) => s.delete(id)),
+};
+
+// Espelho remoto (Supabase Storage), registrado por cloud.js quando há login.
+let remote = null;
+export function setPhotoRemote(r) {
+  remote = r;
+}
+
+export async function putPhoto(rec) {
+  await local.put(rec);
+  remote?.upload(rec).catch((e) => console.warn('Foto não enviada à nuvem', e));
+}
+
+// IndexedDB primeiro; se não estiver no aparelho (ex.: outro celular), baixa da nuvem.
+export async function getPhoto(id) {
+  const hit = await local.get(id);
+  if (hit || !remote) return hit;
+  try {
+    const rec = await remote.download(id);
+    if (rec) await local.put(rec);
+    return rec;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function deletePhoto(id) {
+  await local.del(id);
+  remote?.remove(id).catch(() => {});
+}
+
 export const allPhotos = () => tx('readonly', (s) => s.getAll());
 
 export async function compressImage(file, max = 1080, quality = 0.82) {

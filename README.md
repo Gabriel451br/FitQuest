@@ -69,6 +69,16 @@ js/views/*                                 telas
 tests/                                     testes (node:test)
 ```
 
+## Conta e nuvem (Supabase)
+
+1. No Supabase → **SQL Editor**, rode `supabase/schema.sql` (tabelas, RLS, login por usuário e bucket de fotos).
+2. Em `js/config.js`, preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` (Project Settings → API).
+3. Opcional: Authentication → Sign In / Providers → Email → desligue **Confirm email** para entrar logo após o cadastro.
+
+Com isso o app pede **login (usuário + senha)** ou **cadastro (usuário, e-mail, senha)**; a sessão fica salva no aparelho. Os dados são gravados no aparelho na hora e sincronizados com a tabela `user_data` (último a gravar vence); fotos vão para o bucket privado `photos`. Funciona offline e envia quando a conexão volta. Os dados que já existiam no aparelho são levados para a conta no primeiro login.
+
+Sem as chaves, o app funciona só no aparelho, como antes.
+
 ## Dados e privacidade
 
 Tudo fica no navegador do aparelho (localStorage + IndexedDB). Use **Ajustes → Backup** para exportar/importar (com ou sem fotos).

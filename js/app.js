@@ -1,6 +1,8 @@
 // Shell do app: roteamento por hash, barra superior, navegação e feedback de XP.
 import { html, render, useEffect, useRef, useState } from './lib.js';
-import { useStore, getState } from './store.js';
+import { useStore, getState, getEpoch } from './store.js';
+import { cloudEnabled, useAuth } from './cloud.js';
+import { AuthView, Splash } from './views/auth.js';
 import { computeGame } from './game.js';
 import { Icon, toast } from './ui.js';
 import { dateKey } from './util.js';
@@ -54,8 +56,8 @@ function useXpFeedback(game) {
   const prev = useRef(null);
   useEffect(() => {
     const p = prev.current;
-    prev.current = { xp: game.totalXp, level: game.level.level, ach: game.achievements.filter((a) => a.unlocked).map((a) => a.id) };
-    if (!p) return;
+    prev.current = { xp: game.totalXp, level: game.level.level, ach: game.achievements.filter((a) => a.unlocked).map((a) => a.id), epoch: getEpoch() };
+    if (!p || p.epoch !== getEpoch()) return;
     const gained = game.totalXp - p.xp;
     if (gained > 0) toast(`+${gained} XP`, 'xp');
     if (game.level.level > p.level) setTimeout(() => toast(`LEVEL UP → LV ${game.level.level} · ${game.level.title.toUpperCase()}`, 'xp'), 400);
@@ -99,6 +101,7 @@ function Nav({ route }) {
 }
 
 function App() {
+  const auth = useAuth();
   const s = useStore();
   const { route, params } = useRoute();
   useTheme(s.settings.theme);
@@ -113,6 +116,8 @@ function App() {
   const game = computeGame(s, today);
   useXpFeedback(game);
 
+  if (cloudEnabled && !auth.ready) return html`<${Splash} />`;
+  if (cloudEnabled && !auth.user) return html`<${AuthView} />`;
   if (!s.profile) return html`<${Onboarding} />`;
 
   let view;

@@ -5,6 +5,7 @@ import { allPhotos, putPhoto } from '../photos.js';
 import { Field, NumInput, Seg, Check, toast, confirmDialog } from '../ui.js';
 import { go } from '../nav.js';
 import { dateKey } from '../util.js';
+import { cloudEnabled, useAuth, useSync, signOut, syncNow } from '../cloud.js';
 
 export function SettingsView({ s }) {
   const p = s.profile;
@@ -57,6 +58,8 @@ export function SettingsView({ s }) {
     <div class="stack">
       <div class="page-head"><h1>Ajustes</h1></div>
 
+      ${cloudEnabled && html`<${AccountCard} />`}
+
       <section class="card stack-sm">
         <h3 class="up">Perfil</h3>
         <${Field} label="Nome"><input class="input" value=${p.name} onInput=${(e) => setP('name')(e.target.value)} /><//>
@@ -102,5 +105,41 @@ export function SettingsView({ s }) {
 
       <p class="tiny muted center">FitQuest 2.0 · Alimentos: TACO 4ª ed. (NEPA/UNICAMP) · % gordura: Marinha dos EUA / RFM · TMB: Mifflin-St Jeor / Katch-McArdle · 1RM: Epley.<br />Estimativas não substituem avaliação profissional.</p>
     </div>
+  `;
+}
+
+const SYNC_LABEL = {
+  idle: ['Aguardando', ''],
+  pending: ['Alterações a enviar', ''],
+  syncing: ['Sincronizando…', ''],
+  ok: ['Sincronizado', 'acc'],
+  offline: ['Sem conexão — salvo no aparelho', ''],
+};
+
+function AccountCard() {
+  const auth = useAuth();
+  const sync = useSync();
+  const u = auth.user;
+  const [label, cls] = SYNC_LABEL[sync.status] ?? SYNC_LABEL.idle;
+  const logout = async () => {
+    if (!(await confirmDialog('Sair da conta neste aparelho? Seus dados continuam salvos na nuvem.', { ok: 'Sair', danger: false }))) return;
+    await signOut();
+    go('hoje');
+  };
+  return html`
+    <section class="card stack-sm">
+      <div class="row-sb"><h3 class="up">Conta</h3><span class=${`tag ${cls}`}>${label}</span></div>
+      <dl class="kv">
+        <dt>Usuário</dt><dd>@${u?.user_metadata?.username ?? '—'}</dd>
+        <dt>E-mail</dt><dd style="overflow-wrap:anywhere">${u?.email ?? '—'}</dd>
+        ${sync.at && html`<dt>Último envio/recebimento</dt><dd>${new Date(sync.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</dd>`}
+      </dl>
+      ${sync.status === 'offline' && sync.error && html`<p class="tiny muted">${sync.error}</p>`}
+      <div class="grid-2">
+        <button class="btn" onClick=${() => syncNow()}>Sincronizar</button>
+        <button class="btn dark" onClick=${logout}>Sair</button>
+      </div>
+      <p class="tiny muted">Tudo é salvo no aparelho na hora e enviado à nuvem em seguida. Sem internet, o envio acontece quando a conexão voltar.</p>
+    </section>
   `;
 }

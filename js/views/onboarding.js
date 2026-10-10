@@ -4,13 +4,14 @@ import { update } from '../store.js';
 import { ACTIVITY, GOALS, macroTargets, bmi, bmiClass } from '../calc.js';
 import { Field, NumInput, Seg } from '../ui.js';
 import { dateKey, num } from '../util.js';
+import { currentUsername } from '../cloud.js';
 
 const THIS_YEAR = new Date().getFullYear();
 
 export function Onboarding() {
   const [step, setStep] = useState(0);
   const [f, setF] = useState({
-    name: '', sex: 'M', birthYear: null, height: null, weight: null,
+    name: currentUsername().split('@')[0], sex: 'M', birthYear: null, height: null, weight: null,
     activity: 'moderado', goal: 'recomp', trainDays: 4,
   });
   const set = (k) => (v) => setF((o) => ({ ...o, [k]: v }));

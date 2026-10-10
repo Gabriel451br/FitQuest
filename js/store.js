@@ -1,28 +1,34 @@
-// Estado global persistido em localStorage. Fotos ficam no IndexedDB (photos.js).
+// Estado global. Cache local por usuário (localStorage) + sincronização com a nuvem (cloud.js).
+// Fotos ficam no IndexedDB e no Storage do Supabase (photos.js).
 import { useEffect, useState } from './lib.js';
 import { setCustomFoods } from './foods.js';
 import { emptyState, migrate } from './selectors.js';
 
 export * from './selectors.js';
 
-const KEY = 'fitquest.v2';
+// Chave sem usuário: modo local (sem nuvem configurada) e dados antigos a migrar.
+export const LEGACY_KEY = 'fitquest.v2';
+let KEY = LEGACY_KEY;
 
-function load() {
+function read(key) {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return emptyState();
-    return migrate(JSON.parse(raw));
+    const raw = localStorage.getItem(key);
+    return raw ? migrate(JSON.parse(raw)) : null;
   } catch {
-    return emptyState();
+    return null;
   }
 }
 
-let state = load();
+let state = read(KEY) ?? emptyState();
 setCustomFoods(state.customFoods);
 const subs = new Set();
+const changeHooks = new Set();
 let saveTimer = null;
-
 let dirty = false;
+// Incrementa quando o estado é trocado em bloco (nuvem, conta, importação):
+// a UI usa isso para não comemorar XP que não foi ganho agora.
+let epoch = 0;
+export const getEpoch = () => epoch;
 
 function flush() {
   clearTimeout(saveTimer);
@@ -39,6 +45,11 @@ function persist() {
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 150);
+}
+
+function emit() {
+  setCustomFoods(state.customFoods);
+  subs.forEach((s) => s(state));
 }
 
 // Grava na hora se o app for fechado/minimizado antes do debounce.
@@ -61,21 +72,56 @@ export function getState() {
   return state;
 }
 
+// Notificado a cada mudança local (usado para enviar à nuvem).
+export function onLocalChange(fn) {
+  changeHooks.add(fn);
+  return () => changeHooks.delete(fn);
+}
+
 // Mutação por rascunho: recebe uma cópia profunda, retorna novo estado imutável.
 export function update(fn) {
   const draft = structuredClone(state);
   fn(draft);
+  draft.updatedAt = Date.now();
   state = draft;
-  setCustomFoods(state.customFoods);
   persist();
-  subs.forEach((s) => s(state));
+  emit();
+  changeHooks.forEach((h) => h(state));
 }
 
-export function replaceState(next) {
+// Substitui tudo. fromCloud=true não reenvia para a nuvem (evita eco).
+export function replaceState(next, { fromCloud = false } = {}) {
+  epoch++;
   state = migrate(next);
-  setCustomFoods(state.customFoods);
+  if (!fromCloud) state.updatedAt = Date.now();
   persist();
-  subs.forEach((s) => s(state));
+  flush();
+  emit();
+  if (!fromCloud) changeHooks.forEach((h) => h(state));
+}
+
+// Troca para o cache local de um usuário. Na primeira vez, adota os dados
+// que já existiam no aparelho (modo sem login) para não perder nada.
+export function switchAccount(userId) {
+  flush();
+  KEY = userId ? `${LEGACY_KEY}:${userId}` : LEGACY_KEY;
+  let next = read(KEY);
+  let adoptedLegacy = false;
+  if (!next && userId) {
+    const legacy = read(LEGACY_KEY);
+    if (legacy?.profile) {
+      next = legacy;
+      adoptedLegacy = true;
+      // dados passam a pertencer a esta conta; outra conta no aparelho não os herda
+      try { localStorage.removeItem(LEGACY_KEY); } catch { /* ignore */ }
+    }
+  }
+  epoch++;
+  state = next ?? emptyState();
+  dirty = true;
+  flush();
+  emit();
+  return { adoptedLegacy };
 }
 
 export function useStore() {

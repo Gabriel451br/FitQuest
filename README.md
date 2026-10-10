@@ -10,7 +10,11 @@ Acompanhe e **gamifique** sua jornada fitness: treino, dieta, avaliação físic
 
 **Treino**
 - Rotinas próprias ou modelos prontos (Full body, Upper/Lower, PPL, ABC); 65+ exercícios por grupo muscular + exercícios personalizados.
-- Sessão ao vivo: carga, reps, **RPE** e **%RM** (opcionais), aquecimento, timer de descanso, cargas da última sessão e sugestão de progressão (dupla progressão).
+- Sessão ao vivo com barra fixa no topo (tempo de treino e descanso, com aviso sonoro/vibração).
+- Séries com tipos: aquecimento, trabalho, top set, back-off, drop set, falha, rest-pause, myo-reps, cluster e negativa.
+- Carga e reps se auto-preenchem nas séries de baixo; meta editável (reps, RPE, %, carga, descanso) e observações por exercício e por treino.
+- Coluna de intensidade por exercício: **RPE** ou **%RM** (com 1RM de referência). Aba **RM** com calculadora (Epley, Brzycki, Lombardi) e tabela de %.
+- Funciona offline (dieta e treino); sincroniza quando a conexão volta.
 - PR detectado em tempo real (1RM estimado — Epley, com RIR via RPE).
 - Histórico editável, gráfico de evolução por exercício (1RM, carga máx., volume) e **séries semanais por grupo muscular** com faixa de referência 10–20.
 

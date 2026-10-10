@@ -37,8 +37,9 @@ const PATHS = {
   ball: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3.5 9h17M3.5 15h17M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18',
 };
 
-export function Icon({ name, size }) {
-  return html`<svg viewBox="0 0 24 24" width=${size} height=${size} fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d=${PATHS[name] ?? ''} /></svg>`;
+// Tamanho padrão 20px; regras de CSS específicas (nav, botões) podem sobrescrever.
+export function Icon({ name, size = 20 }) {
+  return html`<svg viewBox="0 0 24 24" width=${size} height=${size} style="flex:none" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d=${PATHS[name] ?? ''} /></svg>`;
 }
 
 // --- Modal (bottom sheet) ----------------------------------------------------
@@ -67,14 +68,17 @@ function ModalRoot({ renderFn, close }) {
   return renderFn(close);
 }
 
-export function Sheet({ title, onClose, children, footer }) {
+// full: ocupa a tela a partir do topo (bom para busca: o teclado não empurra o conteúdo).
+// sub: área fixa abaixo do título (ex.: campo de busca), fora da rolagem.
+export function Sheet({ title, onClose, children, footer, full, sub }) {
   return html`
-    <div class="overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
-      <div class="sheet" role="dialog" aria-modal="true" aria-label=${title}>
+    <div class=${`overlay ${full ? 'top' : ''}`} onClick=${(e) => e.target === e.currentTarget && onClose()}>
+      <div class=${`sheet ${full ? 'full' : ''}`} role="dialog" aria-modal="true" aria-label=${title}>
         <div class="sheet-head">
           <h2>${title}</h2>
           <button class="icon-btn" onClick=${onClose} aria-label="Fechar"><${Icon} name="x" /></button>
         </div>
+        ${sub && html`<div class="sheet-sub">${sub}</div>`}
         <div class="sheet-body">${children}</div>
         ${footer && html`<div class="sheet-foot">${footer}</div>`}
       </div>

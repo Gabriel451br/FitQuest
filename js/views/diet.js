@@ -158,12 +158,13 @@ function FoodSearch({ close, onPick }) {
     return searchFoods(q, { cat, limit: 60 });
   }, [q, cat]);
   return html`
-    <${Sheet} title="Adicionar alimento" onClose=${close}>
-      <input class="input" placeholder="Buscar na TACO: frango, arroz, banana…" value=${q} onInput=${(e) => setQ(e.target.value)} autofocus />
+    <${Sheet} title="Adicionar alimento" onClose=${close} full sub=${html`
+      <input class="input" type="search" enterkeyhint="search" placeholder="Buscar na TACO: frango, arroz, banana…" value=${q} onInput=${(e) => setQ(e.target.value)} />
       <div class="chips" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">
         <button class=${`chip ${!cat ? 'on' : ''}`} onClick=${() => setCat(null)}>Todas</button>
         ${TACO_CATEGORIES.map((c, i) => html`<button class=${`chip ${cat === i + 1 ? 'on' : ''}`} style="white-space:nowrap" onClick=${() => setCat(i + 1)}>${c.split(' ')[0].replace(',', '')}</button>`)}
       </div>
+    `}>
       ${!q && !cat && s.recentFoods.length > 0 && html`<div class="eyebrow">Recentes</div>`}
       <div class="list">
         ${results.map((f) => html`

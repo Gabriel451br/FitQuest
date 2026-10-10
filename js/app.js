@@ -66,15 +66,29 @@ function useXpFeedback(game) {
   }, [game.totalXp]);
 }
 
+function useOnline() {
+  const [on, set] = useState(navigator.onLine);
+  useEffect(() => {
+    const a = () => set(true);
+    const b = () => set(false);
+    addEventListener('online', a);
+    addEventListener('offline', b);
+    return () => { removeEventListener('online', a); removeEventListener('offline', b); };
+  }, []);
+  return on;
+}
+
 function TopBar({ game }) {
   const lv = game.level;
+  const online = useOnline();
   return html`
     <header class="topbar">
       <div class="topbar-in">
         <button class="brand" onClick=${() => go('hoje')} aria-label="Início">
-          <span class="brand-mark">FQ</span><span>FitQuest</span>
+          <span class="brand-mark">FQ</span><span class="hide-xs">FitQuest</span>
         </button>
         <div class="spacer"></div>
+        ${!online && html`<span class="net-chip" title="Sem internet: tudo continua salvo no aparelho e sincroniza depois">OFFLINE</span>`}
         <button class="lvl-chip" onClick=${() => go('jornada')} aria-label=${`Nível ${lv.level}`} style="cursor:pointer">
           <span class="lv">LV ${lv.level}</span>
           <span class="track"><i style=${`width:${Math.round(lv.pct * 100)}%`}></i></span>

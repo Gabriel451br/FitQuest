@@ -28,15 +28,28 @@ export function emptyState() {
     sessions: [], // [{ id, date, workoutId, name, startedAt, finishedAt, exercises: [{ exId, sets: [...] }] }]
     activeSessionId: null,
     goals: [], // [{ id, type, title, target, exId, createdAt, completedAt }]
-    settings: { theme: 'auto', showRpe: true, showPct: false },
+    // intensity: coluna padrão nas séries ('rpe' | 'pct' | 'none'); cada exercício pode sobrescrever.
+    settings: { theme: 'auto', intensity: 'rpe' },
+    exerciseSettings: {}, // { [exId]: { intensity, oneRm } }
   };
 }
 
 export function migrate(s) {
   const base = emptyState();
   const out = { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) } };
+  // versões antigas tinham duas chaves (showRpe/showPct) em vez de "intensity"
+  if (!s.settings?.intensity && s.settings) {
+    out.settings.intensity = s.settings.showPct ? 'pct' : s.settings.showRpe === false ? 'none' : 'rpe';
+  }
+  delete out.settings.showRpe;
+  delete out.settings.showPct;
   out.version = 2;
   return out;
+}
+
+// Coluna de intensidade de um exercício: configuração própria ou padrão global.
+export function intensityFor(s, exId) {
+  return s.exerciseSettings?.[exId]?.intensity ?? s.settings.intensity ?? 'rpe';
 }
 
 // --- Seletores ----------------------------------------------------------------

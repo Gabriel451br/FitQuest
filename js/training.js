@@ -4,7 +4,23 @@ import { MUSCLES } from './data/exercises.js';
 import { exerciseById, finishedSessions } from './selectors.js';
 import { weekStart } from './util.js';
 
-export const isWorking = (st) => st.done && !st.warmup && Number(st.reps) > 0;
+// Tipos de série. Aquecimento não conta para volume/PR; os demais contam como série válida.
+export const SET_KINDS = {
+  work: { label: 'Trabalho', short: '', hint: 'Série válida normal' },
+  warmup: { label: 'Aquecimento', short: 'W', hint: 'Não conta no volume nem em recordes' },
+  top: { label: 'Top set', short: 'T', hint: 'Série principal mais pesada' },
+  backoff: { label: 'Back-off', short: 'B', hint: 'Série mais leve após a top set' },
+  drop: { label: 'Drop set', short: 'D', hint: 'Reduz a carga e continua sem descanso' },
+  failure: { label: 'Até a falha', short: 'F', hint: 'Levada à falha concêntrica' },
+  restpause: { label: 'Rest-pause', short: 'RP', hint: 'Mini pausas de 10–20 s dentro da série' },
+  myo: { label: 'Myo-reps', short: 'MY', hint: 'Série de ativação + mini séries' },
+  cluster: { label: 'Cluster', short: 'CL', hint: 'Blocos curtos com pausas intra-série' },
+  negative: { label: 'Negativa', short: 'N', hint: 'Ênfase na fase excêntrica' },
+};
+
+export const setKind = (st) => st.kind ?? (st.warmup ? 'warmup' : 'work');
+export const isWarmup = (st) => setKind(st) === 'warmup';
+export const isWorking = (st) => st.done && !isWarmup(st) && Number(st.reps) > 0;
 
 export function setE1rm(st) {
   return e1rm(Number(st.kg) || 0, Number(st.reps) || 0, Number(st.rpe) || null);
@@ -121,3 +137,12 @@ export function suggestNext(last, repRange, step = 2.5) {
   const minReps = Math.min(...topSets.map((x) => Number(x.reps)));
   return { kg: topKg, reps: Math.min(range.max, minReps + 1), text: `Mantenha ${topKg} kg, busque ${Math.min(range.max, minReps + 1)}+ reps` };
 }
+
+// 1RM de referência para %RM: valor informado pelo usuário ou o melhor estimado.
+export function oneRmRef(s, exId) {
+  const manual = Number(s.exerciseSettings?.[exId]?.oneRm) || 0;
+  return manual > 0 ? manual : bestE1rm(s, exId);
+}
+
+// Levantamentos básicos sugeridos para %RM.
+export const MAIN_LIFTS = ['agachamento', 'supino-reto', 'levantamento-terra', 'desenvolvimento'];

@@ -79,8 +79,9 @@ export function SettingsView({ s }) {
 
       <section class="card stack-sm">
         <h3 class="up">Registro de treino</h3>
-        <${Check} checked=${s.settings.showRpe} onChange=${setS('showRpe')}>Coluna RPE (esforço percebido 1–10)<//>
-        <${Check} checked=${s.settings.showPct} onChange=${setS('showPct')}>Coluna %RM (digite a % e a carga é calculada)<//>
+        <${Field} label="Coluna de intensidade padrão" hint="Cada exercício pode ter a sua (⋯ no exercício ou aba Treino → RM).">
+          <${Seg} value=${s.settings.intensity ?? 'rpe'} onChange=${setS('intensity')} options=${[['rpe', 'RPE'], ['pct', '%RM'], ['none', 'Nenhuma']]} />
+        <//>
       </section>
 
       <section class="card stack-sm">

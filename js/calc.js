@@ -146,6 +146,33 @@ export function e1rm(kg, reps, rpe) {
   return round(kg * (1 + total / 30), 1);
 }
 
+// Outras fórmulas clássicas (comparação na calculadora de RM).
+export function brzycki(kg, reps) {
+  if (!kg || !reps || reps >= 37) return 0;
+  return reps === 1 ? kg : round((kg * 36) / (37 - reps), 1);
+}
+
+export function lombardi(kg, reps) {
+  if (!kg || !reps) return 0;
+  return round(kg * reps ** 0.1, 1);
+}
+
+// Reps aproximadas que se consegue fazer com X% do 1RM (Epley invertida).
+export function repsAtPct(pct) {
+  if (!pct || pct >= 100) return 1;
+  return Math.max(1, Math.round(30 * (100 / pct - 1)));
+}
+
+export function oneRmEstimates(kg, reps, rpe) {
+  const epley = e1rm(kg, reps, rpe);
+  const rir = rpe ? Math.max(0, 10 - rpe) : 0;
+  const r = reps + rir;
+  const bz = brzycki(kg, r);
+  const lb = lombardi(kg, r);
+  const vals = [epley, bz, lb].filter((v) => v > 0);
+  return { epley, brzycki: bz, lombardi: lb, avg: vals.length ? round(vals.reduce((a, b) => a + b, 0) / vals.length, 1) : 0 };
+}
+
 export function pctOf1rm(kg, oneRm) {
   if (!kg || !oneRm) return null;
   return round((kg / oneRm) * 100);

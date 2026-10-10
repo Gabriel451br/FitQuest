@@ -1,10 +1,10 @@
 // TREINO: rotinas, sessão ativa, histórico e progresso.
 import { html, useState, useEffect, useMemo } from '../lib.js';
-import { update, getState, allExercises, exerciseById, finishedSessions } from '../store.js';
+import { update, getState, useStore, allExercises, exerciseById, finishedSessions, intensityFor } from '../store.js';
 import { MUSCLES, SPLIT_TEMPLATES, WEEKLY_SET_TARGET } from '../data/exercises.js';
-import { exerciseHistory, lastPerformance, bestE1rm, computePRs, sessionStats, weeklySets, suggestNext, setE1rm, isWorking } from '../training.js';
-import { pctOf1rm, loadForPct } from '../calc.js';
-import { Icon, openModal, Sheet, Field, Seg, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
+import { exerciseHistory, lastPerformance, bestE1rm, computePRs, sessionStats, weeklySets, suggestNext, setE1rm, SET_KINDS, setKind, isWarmup, oneRmRef, MAIN_LIFTS } from '../training.js';
+import { pctOf1rm, loadForPct, oneRmEstimates, repsAtPct } from '../calc.js';
+import { Icon, openModal, Sheet, Field, Seg, Check, NumInput, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
 import { LineChart } from '../charts.js';
 import { startSession, nextWorkout, deleteSession, deleteWorkout } from '../actions.js';
 import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
@@ -46,7 +46,7 @@ function TrainingHome({ s, today }) {
       ${cat === 'strength'
         ? html`
           <div class="tabs">
-            ${[['rotina', 'Rotina'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume']].map(([k, l]) => html`
+            ${[['rotina', 'Rotina'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume'], ['rm', 'RM']].map(([k, l]) => html`
               <button class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}>${l}</button>
             `)}
           </div>
@@ -54,6 +54,7 @@ function TrainingHome({ s, today }) {
           ${tab === 'historico' && html`<${HistoryTab} s=${s} />`}
           ${tab === 'progresso' && html`<${ProgressTab} s=${s} />`}
           ${tab === 'volume' && html`<${VolumeTab} s=${s} today=${today} />`}
+          ${tab === 'rm' && html`<${RmTab} s=${s} />`}
         `
         : html`<${CardioHome} key=${cat} s=${s} type=${cat} today=${today} />`}
     </div>
@@ -199,12 +200,13 @@ function ExercisePicker({ close, onPick }) {
   };
 
   return html`
-    <${Sheet} title="Exercícios" onClose=${close}>
-      <input class="input" placeholder="Buscar exercício…" value=${q} onInput=${(e) => setQ(e.target.value)} autofocus />
-      <div class="chips">
+    <${Sheet} title="Exercícios" onClose=${close} full sub=${html`
+      <input class="input" type="search" enterkeyhint="search" placeholder="Buscar exercício…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+      <div class="chips" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">
         <button class=${`chip ${!group ? 'on' : ''}`} onClick=${() => setGroup(null)}>Todos</button>
-        ${Object.entries(MUSCLES).map(([k, l]) => html`<button class=${`chip ${group === k ? 'on' : ''}`} onClick=${() => setGroup(k)}>${l}</button>`)}
+        ${Object.entries(MUSCLES).map(([k, l]) => html`<button class=${`chip ${group === k ? 'on' : ''}`} style="white-space:nowrap" onClick=${() => setGroup(k)}>${l}</button>`)}
       </div>
+    `}>
       <div class="list">
         ${list.map((e) => html`
           <button class="li btnlike" key=${e.id} onClick=${() => onPick(e.id)}>
@@ -232,34 +234,68 @@ function ExercisePicker({ close, onPick }) {
 
 // --- Sessão ativa -----------------------------------------------------------------
 
-let restEnd = 0;
-let restListeners = new Set();
+// Descanso: guardado no aparelho para sobreviver a recarregar/fechar o app.
+const REST_KEY = 'fitquest.restEnd';
+let restEnd = Number(localStorage.getItem(REST_KEY)) || 0;
+const restListeners = new Set();
 function startRest(sec) {
-  restEnd = Date.now() + sec * 1000;
+  restEnd = sec > 0 ? Date.now() + sec * 1000 : 0;
+  try { localStorage.setItem(REST_KEY, String(restEnd)); } catch { /* ignore */ }
   restListeners.forEach((f) => f(restEnd));
 }
 
-function RestTimer() {
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach((t) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.18);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + t);
+      o.stop(ctx.currentTime + t + 0.2);
+    });
+  } catch { /* sem áudio */ }
+}
+
+const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+
+// Barra fixa no topo: tempo de treino + descanso sempre à vista.
+function SessionBar({ ses, st, onFinish }) {
   const [end, setEnd] = useState(restEnd);
   const now = useNow(250);
   useEffect(() => {
     restListeners.add(setEnd);
     return () => restListeners.delete(setEnd);
   }, []);
-  const left = Math.max(0, Math.ceil((end - now) / 1000));
+  const left = end ? Math.max(0, Math.ceil((end - now) / 1000)) : 0;
   useEffect(() => {
     if (end && left === 0) {
       navigator.vibrate?.([200, 100, 200]);
-      setEnd(0);
-      restEnd = 0;
+      beep();
+      startRest(0);
     }
   }, [left === 0]);
-  if (!end || left <= 0) return null;
+  const elapsed = Math.max(0, Math.floor((now - ses.startedAt) / 1000));
+  const resting = left > 0;
   return html`
-    <div class="timer" role="timer">
-      <span>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</span>
-      <button onClick=${() => startRest(left + 30)}>+30</button>
-      <button onClick=${() => { startRest(0); }}>Pular</button>
+    <div class=${`session-bar ${resting ? 'resting' : ''}`} role="timer">
+      <div class="sb-block">
+        <span class="sb-l">${resting ? 'Descanso' : 'Treino'}</span>
+        <span class="sb-v">${resting ? mmss(left) : mmss(elapsed)}</span>
+      </div>
+      ${resting
+        ? html`
+          <div class="sb-actions">
+            <button onClick=${() => startRest(Math.max(1, left - 15))}>−15</button>
+            <button onClick=${() => startRest(left + 15)}>+15</button>
+            <button onClick=${() => startRest(0)}>Pular</button>
+          </div>`
+        : html`
+          <div class="sb-meta mono">${st.sets} séries · ${num(st.volume)} kg</div>
+          <button class="sb-finish" onClick=${onFinish}><${Icon} name="check" size="16" />Finalizar</button>`}
     </div>
   `;
 }
@@ -271,16 +307,17 @@ function patchSession(id, fn) {
   });
 }
 
+const newSet = (extra = {}) => ({ kg: null, reps: null, rpe: null, pct: null, done: false, kind: 'work', ...extra });
+
 function SessionView({ s, ses }) {
-  const now = useNow(1000);
   const editing = !!ses.finishedAt;
-  const elapsed = Math.floor(((ses.finishedAt ?? now) - ses.startedAt) / 1000);
   const st = sessionStats(s, ses);
 
   const finish = async () => {
     const pending = ses.exercises.some((e) => e.sets.some((x) => !x.done && (x.kg || x.reps)));
     if (!st.sets) return toast('Marque ao menos uma série como feita ✓');
     if (pending && !(await confirmDialog('Há séries preenchidas e não marcadas. Finalizar mesmo assim?', { ok: 'Finalizar', danger: false }))) return;
+    startRest(0);
     patchSession(ses.id, (x, root) => {
       x.finishedAt = Date.now();
       x.exercises.forEach((e) => (e.sets = e.sets.filter((y) => y.done)));
@@ -298,6 +335,7 @@ function SessionView({ s, ses }) {
       return;
     }
     if (!(await confirmDialog('Descartar este treino?', { ok: 'Descartar' }))) return;
+    startRest(0);
     update((root) => {
       root.sessions = root.sessions.filter((x) => x.id !== ses.id);
       if (root.activeSessionId === ses.id) root.activeSessionId = null;
@@ -307,14 +345,12 @@ function SessionView({ s, ses }) {
 
   return html`
     <div class="stack">
+      ${!editing && html`<${SessionBar} ses=${ses} st=${st} onFinish=${finish} />`}
       <div class="page-head">
         <div class="grow">
           <button class="link-btn small" onClick=${() => go('treino')}>← Treino</button>
-          <input class="input" style="font-size:22px;font-weight:700;text-transform:uppercase;border:0;padding:4px 0;min-height:0;background:transparent;box-shadow:none" value=${ses.name} onInput=${(e) => patchSession(ses.id, (x) => (x.name = e.target.value))} aria-label="Nome do treino" />
-          <div class="row small mono muted">
-            <span>${editing ? fmtDate(ses.date, { year: true }) : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}</span>
-            <span>· ${st.sets} séries · ${num(st.volume)} kg</span>
-          </div>
+          <input class="input title-input" value=${ses.name} onInput=${(e) => patchSession(ses.id, (x) => (x.name = e.target.value))} aria-label="Nome do treino" />
+          ${editing && html`<div class="row small mono muted"><span>${fmtDate(ses.date, { year: true })} · ${st.sets} séries · ${num(st.volume)} kg</span></div>`}
         </div>
       </div>
 
@@ -326,9 +362,13 @@ function SessionView({ s, ses }) {
 
       ${ses.exercises.map((ex, i) => html`<${ExerciseLog} key=${ex.exId + i} s=${s} ses=${ses} ex=${ex} idx=${i} />`)}
 
-      <button class="btn" onClick=${() => pickExercise((exId) => patchSession(ses.id, (x) => x.exercises.push({ exId, target: '8-12', rest: 90, sets: [0, 1, 2].map(() => ({ kg: null, reps: null, rpe: null, pct: null, done: false, warmup: false })) })))}>
+      <button class="btn" onClick=${() => pickExercise((exId) => patchSession(ses.id, (x) => x.exercises.push({ exId, target: '8-12', rest: 90, sets: [0, 1, 2].map(() => newSet()) })))}>
         <${Icon} name="plus" />Adicionar exercício
       </button>
+
+      <${Field} label="Observações do treino">
+        <textarea class="input" rows="2" placeholder="Como foi o treino? Energia, sono, dores…" value=${ses.note ?? ''} onInput=${(e) => patchSession(ses.id, (x) => (x.note = e.target.value))}></textarea>
+      <//>
 
       <div class="row">
         <button class="btn" onClick=${discard}>${editing ? 'Excluir' : 'Descartar'}</button>
@@ -336,17 +376,35 @@ function SessionView({ s, ses }) {
           ? html`<button class="btn primary grow" onClick=${() => go('treino')}>Pronto</button>`
           : html`<button class="btn primary grow" onClick=${finish}><${Icon} name="check" />Finalizar treino</button>`}
       </div>
-      ${!editing && html`<div style="height:64px" aria-hidden="true"></div><${RestTimer} />`}
     </div>
   `;
+}
+
+function targetLabel(ex) {
+  const t = [];
+  if (ex.target) t.push(`${ex.target} reps`);
+  if (ex.targetRpe) t.push(`RPE ${ex.targetRpe}`);
+  if (ex.targetPct) t.push(`${ex.targetPct}%`);
+  if (ex.targetKg) t.push(`${num(ex.targetKg, 1)} kg`);
+  return t.join(' · ');
 }
 
 function ExerciseLog({ s, ses, ex, idx }) {
   const def = exerciseById(s, ex.exId);
   const last = useMemo(() => lastPerformance(s, ex.exId, ses.id), [s.sessions, ex.exId]);
+  const lastNote = useMemo(() => {
+    const prev = finishedSessions(s).filter((x) => x.id !== ses.id).reverse();
+    for (const p of prev) {
+      const e = p.exercises.find((y) => y.exId === ex.exId && y.note);
+      if (e) return e.note;
+    }
+    return null;
+  }, [s.sessions, ex.exId]);
   const best = useMemo(() => bestE1rm(s, ex.exId), [s.sessions, ex.exId]);
+  const ref = oneRmRef(s, ex.exId);
   const sug = suggestNext(last, ex.target);
-  const { showRpe, showPct } = s.settings;
+  const mode = intensityFor(s, ex.exId);
+  const [showNote, setShowNote] = useState(!!ex.note);
   const prevBest = useMemo(() => {
     // melhor 1RM antes desta sessão (para marcar PR ao vivo)
     const h = exerciseHistory(s, ex.exId).filter((x) => x.sessionId !== ses.id && x.date <= ses.date);
@@ -354,26 +412,46 @@ function ExerciseLog({ s, ses, ex, idx }) {
   }, [s.sessions, ex.exId]);
 
   const patchEx = (fn) => patchSession(ses.id, (x) => fn(x.exercises[idx]));
+
+  // Edita um campo e copia o valor para as séries de baixo ainda não feitas
+  // (que estejam vazias ou também auto-preenchidas). Valor digitado à mão não é sobrescrito.
   const patchSet = (j, k, v) => patchEx((e) => {
-    const set = e.sets[j];
-    set[k] = v;
-    if (k === 'pct' && v && best) set.kg = loadForPct(v, best);
+    const apply = (set, auto) => {
+      const kgManual = set.kg != null && set.auto?.kg === false;
+      set[k] = v;
+      set.auto = { ...(set.auto || {}), [k]: auto };
+      if (k === 'pct' && v && ref && (!auto || !kgManual)) {
+        set.kg = loadForPct(v, ref);
+        set.auto.kg = auto;
+      }
+    };
+    apply(e.sets[j], false);
+    const warm = isWarmup(e.sets[j]);
+    for (let i = j + 1; i < e.sets.length; i++) {
+      const t = e.sets[i];
+      if (t.done || isWarmup(t) !== warm) continue;
+      if (t[k] == null || t.auto?.[k]) apply(t, true);
+    }
   });
+
   const toggleDone = (j) => {
     const set = ex.sets[j];
-    const prev = last?.sets[j] ?? last?.sets[last.sets.length - 1];
+    const workIdx = ex.sets.slice(0, j).filter((x) => !isWarmup(x)).length;
+    const prev = isWarmup(set) ? null : last?.sets[workIdx] ?? last?.sets[last.sets.length - 1];
     patchEx((e) => {
       const st = e.sets[j];
       if (!st.done) {
         if (st.kg == null && prev) st.kg = Number(prev.kg);
         if (st.reps == null && prev) st.reps = Number(prev.reps);
-        if (st.kg == null && sug) st.kg = sug.kg;
+        if (st.kg == null && sug && !isWarmup(st)) st.kg = sug.kg;
+        st.auto = {};
       }
       st.done = !st.done;
     });
-    if (!set.done && !ses.finishedAt) startRest(ex.rest ?? 90);
+    if (!set.done && !ses.finishedAt) startRest(isWarmup(set) ? Math.min(60, ex.rest ?? 90) : ex.rest ?? 90);
   };
 
+  let workN = 0;
   return html`
     <div class="ex-card">
       <div class="ex-head">
@@ -381,76 +459,176 @@ function ExerciseLog({ s, ses, ex, idx }) {
           <h3>${def.name}</h3>
           <div class="row wrap" style="gap:6px;margin-top:6px">
             <span class="tag fill">${MUSCLES[def.primary]}</span>
-            ${ex.target && html`<span class="tag">Meta ${ex.target}</span>`}
-            ${best > 0 && html`<span class="tag">1RM est. ${num(best, 1)}</span>`}
+            <button class="tag tag-btn" onClick=${() => openTargetEditor(s, ses, idx)} title="Editar meta">${targetLabel(ex) ? `Meta ${targetLabel(ex)}` : '+ Meta'} ✎</button>
+            ${ref > 0 && html`<span class="tag">1RM ${num(ref, 1)}${s.exerciseSettings?.[ex.exId]?.oneRm ? '' : ' est.'}</span>`}
           </div>
         </div>
-        <button class="x-btn" aria-label="Opções" onClick=${() => exerciseMenu(ses, idx, def)}>⋯</button>
+        <button class="x-btn" aria-label="Opções" onClick=${() => exerciseMenu(s, ses, idx, def)}>⋯</button>
       </div>
-      ${last && html`
+      ${(last || lastNote) && html`
         <div class="ex-prev">
-          <b class="mono">ÚLTIMA ${fmtDate(last.date)}:</b>
-          <span class="mono">${last.sets.map((x) => `${num(x.kg, 1)}×${x.reps}${x.rpe ? '@' + x.rpe : ''}`).join('  ')}</span>
+          ${last && html`<b class="mono">ÚLTIMA ${fmtDate(last.date)}:</b>
+          <span class="mono">${last.sets.map((x) => `${num(x.kg, 1)}×${x.reps}${x.rpe ? '@' + x.rpe : ''}`).join('  ')}</span>`}
           ${sug && html`<span style="flex-basis:100%;font-weight:700">→ ${sug.text}</span>`}
+          ${lastNote && html`<span style="flex-basis:100%" class="muted">Obs. anterior: ${lastNote}</span>`}
         </div>
       `}
       <table class="sets">
         <thead><tr>
           <th>Série</th><th>Kg</th><th>Reps</th>
-          ${showRpe && html`<th>RPE</th>`}
-          ${showPct && html`<th>%RM</th>`}
+          ${mode === 'rpe' && html`<th>RPE</th>`}
+          ${mode === 'pct' && html`<th>%RM</th>`}
           <th></th>
         </tr></thead>
         <tbody>
           ${ex.sets.map((st, j) => {
-            const prev = last?.sets[j];
-            const isPr = st.done && !st.warmup && prevBest != null && setE1rm(st) > prevBest;
-            const pctShown = st.pct ?? (st.kg && best ? pctOf1rm(st.kg, best) : null);
+            const kind = setKind(st);
+            const warm = kind === 'warmup';
+            if (!warm) workN++;
+            const prev = warm ? null : last?.sets[workN - 1];
+            const isPr = st.done && !warm && prevBest != null && setE1rm(st) > prevBest;
+            const pctShown = st.kg && ref ? pctOf1rm(st.kg, ref) : null;
+            const a = st.auto || {};
             return html`
-              <tr class=${`${st.done ? 'done' : ''} ${st.warmup ? 'warm' : ''}`} key=${j}>
+              <tr class=${`${st.done ? 'done' : ''} ${warm ? 'warm' : ''} kind-${kind}`} key=${j}>
                 <td>
-                  <button class="link-btn mono" style="text-decoration:none" title="Tocar para marcar aquecimento" onClick=${() => patchSet(j, 'warmup', !st.warmup)}>${st.warmup ? 'W' : j + 1 - ex.sets.slice(0, j).filter((x) => x.warmup).length}</button>
+                  <button class="set-num" title="Tipo de série" onClick=${() => openSetKind(ses, idx, j, st)}>
+                    ${SET_KINDS[kind].short || workN}
+                    ${kind !== 'work' && kind !== 'warmup' && html`<small>${workN}</small>`}
+                  </button>
                   ${isPr && html`<div class="pr-flag">PR</div>`}
                 </td>
-                <td><input class="input" type="number" inputmode="decimal" step="any" placeholder=${prev ? num(prev.kg, 1) : sug?.kg ?? '—'} value=${st.kg ?? ''} onInput=${(e) => patchSet(j, 'kg', toNum(e.target.value))} aria-label="Carga" /></td>
-                <td><input class="input" type="number" inputmode="numeric" placeholder=${prev?.reps ?? '—'} value=${st.reps ?? ''} onInput=${(e) => patchSet(j, 'reps', toNum(e.target.value))} aria-label="Repetições" /></td>
-                ${showRpe && html`<td><input class="input" type="number" inputmode="decimal" step="0.5" min="5" max="10" placeholder="—" value=${st.rpe ?? ''} onInput=${(e) => patchSet(j, 'rpe', toNum(e.target.value))} aria-label="RPE" /></td>`}
-                ${showPct && html`<td><input class="input" type="number" inputmode="numeric" placeholder=${pctShown ?? '—'} value=${st.pct ?? ''} onInput=${(e) => patchSet(j, 'pct', toNum(e.target.value))} aria-label="% de 1RM" /></td>`}
+                <td><input class=${`input ${a.kg ? 'auto' : ''}`} type="number" inputmode="decimal" step="any" placeholder=${prev ? num(prev.kg, 1) : (!warm && sug?.kg) || '—'} value=${st.kg ?? ''} onInput=${(e) => patchSet(j, 'kg', toNum(e.target.value))} aria-label="Carga" /></td>
+                <td><input class=${`input ${a.reps ? 'auto' : ''}`} type="number" inputmode="numeric" placeholder=${prev?.reps ?? '—'} value=${st.reps ?? ''} onInput=${(e) => patchSet(j, 'reps', toNum(e.target.value))} aria-label="Repetições" /></td>
+                ${mode === 'rpe' && html`<td><input class=${`input ${a.rpe ? 'auto' : ''}`} type="number" inputmode="decimal" step="0.5" min="5" max="10" placeholder=${ex.targetRpe ?? '—'} value=${st.rpe ?? ''} onInput=${(e) => patchSet(j, 'rpe', toNum(e.target.value))} aria-label="RPE" /></td>`}
+                ${mode === 'pct' && html`<td><input class=${`input ${a.pct ? 'auto' : ''}`} type="number" inputmode="numeric" placeholder=${pctShown ?? ex.targetPct ?? '—'} value=${st.pct ?? ''} onInput=${(e) => patchSet(j, 'pct', toNum(e.target.value))} aria-label="% de 1RM" /></td>`}
                 <td><button class=${`set-check ${st.done ? 'on' : ''}`} onClick=${() => toggleDone(j)} aria-label="Série feita"><${Icon} name="check" /></button></td>
               </tr>
             `;
           })}
         </tbody>
       </table>
+      ${mode === 'pct' && !ref && html`<div class="ex-prev muted">Defina o 1RM em ⋯ → 1RM de referência para calcular a carga pela %.</div>`}
+      ${showNote && html`
+        <div style="padding:8px 12px;border-top:var(--bw) solid var(--line)">
+          <textarea class="input" rows="2" placeholder="Observação deste exercício (ajuste do banco, pegada, dor…)" value=${ex.note ?? ''} onInput=${(e) => patchEx((y) => (y.note = e.target.value))}></textarea>
+        </div>
+      `}
       <div class="ex-foot">
         <button class="btn xs" onClick=${() => patchEx((e) => {
-          const l = e.sets[e.sets.length - 1];
-          e.sets.push({ kg: l?.kg ?? null, reps: l?.reps ?? null, rpe: null, pct: null, done: false, warmup: false });
+          const l = [...e.sets].reverse().find((y) => !isWarmup(y)) ?? e.sets[e.sets.length - 1];
+          e.sets.push(newSet({ kg: l?.kg ?? null, reps: l?.reps ?? null, rpe: l?.rpe ?? null, pct: l?.pct ?? null, auto: { kg: true, reps: true, rpe: true, pct: true } }));
         })}><${Icon} name="plus" size="14" />Série</button>
+        <button class="btn xs" onClick=${() => patchEx((e) => {
+          const at = e.sets.findIndex((y) => !isWarmup(y));
+          e.sets.splice(at < 0 ? e.sets.length : at, 0, newSet({ kind: 'warmup' }));
+        })}>+ Aquec.</button>
         ${ex.sets.length > 1 && html`<button class="btn xs ghost" onClick=${() => patchEx((e) => e.sets.pop())}>− Série</button>`}
+        <button class=${`btn xs ${showNote ? 'dark' : 'ghost'}`} onClick=${() => setShowNote(!showNote)}>Obs</button>
         <span class="grow"></span>
-        <span class="mono tiny muted" style="align-self:center">Descanso ${ex.rest ?? 90}s</span>
+        <button class="link-btn mono tiny" style="align-self:center" onClick=${() => openTargetEditor(s, ses, idx)}>Desc. ${ex.rest ?? 90}s</button>
       </div>
     </div>
   `;
 }
 
-function exerciseMenu(ses, idx, def) {
+function openSetKind(ses, idx, j, st) {
+  openModal((close) => html`
+    <${Sheet} title=${`Série ${j + 1} · tipo`} onClose=${close}>
+      <div class="list">
+        ${Object.entries(SET_KINDS).map(([k, v]) => html`
+          <button class=${`li btnlike ${setKind(st) === k ? 'done' : ''}`} onClick=${() => {
+            patchSession(ses.id, (x) => {
+              const set = x.exercises[idx].sets[j];
+              set.kind = k;
+              delete set.warmup;
+            });
+            close();
+          }}>
+            <span class="set-num static">${v.short || '1'}</span>
+            <div class="grow"><div class="t">${v.label}</div><div class="s">${v.hint}</div></div>
+            ${setKind(st) === k && html`<${Icon} name="check" />`}
+          </button>
+        `)}
+        <button class="li btnlike" onClick=${() => { patchSession(ses.id, (x) => x.exercises[idx].sets.splice(j, 1)); close(); }}>
+          <${Icon} name="trash" /><span class="t danger">Remover esta série</span>
+        </button>
+      </div>
+    <//>
+  `);
+}
+
+function openTargetEditor(s, ses, idx) {
+  openModal((close) => html`<${TargetEditor} s=${s} ses=${ses} idx=${idx} close=${close} />`);
+}
+
+function TargetEditor({ s, ses, idx, close }) {
+  const ex = ses.exercises[idx];
+  const [f, setF] = useState({ target: ex.target ?? '', targetRpe: ex.targetRpe ?? null, targetPct: ex.targetPct ?? null, targetKg: ex.targetKg ?? null, rest: ex.rest ?? 90 });
+  const inRoutine = ses.workoutId && s.workouts.find((w) => w.id === ses.workoutId)?.exercises.some((e) => e.exId === ex.exId);
+  const [saveRoutine, setSaveRoutine] = useState(!!inRoutine);
+  const set = (k) => (v) => setF((o) => ({ ...o, [k]: v }));
+  const save = () => {
+    patchSession(ses.id, (x) => Object.assign(x.exercises[idx], f));
+    if (saveRoutine && inRoutine) {
+      update((st) => {
+        const w = st.workouts.find((y) => y.id === ses.workoutId);
+        const e = w?.exercises.find((y) => y.exId === ex.exId);
+        if (e) Object.assign(e, { reps: f.target, targetRpe: f.targetRpe, targetPct: f.targetPct, targetKg: f.targetKg, rest: f.rest });
+      });
+    }
+    close();
+  };
+  return html`
+    <${Sheet} title="Meta do exercício" onClose=${close} footer=${html`<button class="btn primary block" onClick=${save}>Salvar</button>`}>
+      <div class="grid-2">
+        <${Field} label="Repetições" hint="Ex.: 8-12, 5, 3-5"><input class="input num" value=${f.target} onInput=${(e) => set('target')(e.target.value)} placeholder="8-12" /><//>
+        <${Field} label="Descanso"><${NumInput} value=${f.rest} onInput=${set('rest')} unit="s" step="5" /><//>
+        <${Field} label="RPE alvo"><${NumInput} value=${f.targetRpe} onInput=${set('targetRpe')} step="0.5" placeholder="ex.: 8" /><//>
+        <${Field} label="% do 1RM alvo"><${NumInput} value=${f.targetPct} onInput=${set('targetPct')} unit="%" step="1" placeholder="ex.: 75" /><//>
+        <${Field} label="Carga alvo"><${NumInput} value=${f.targetKg} onInput=${set('targetKg')} unit="kg" step="0.5" /><//>
+      </div>
+      ${inRoutine && html`<${Check} checked=${saveRoutine} onChange=${setSaveRoutine}>Salvar também na rotina (próximos treinos)<//>`}
+    <//>
+  `;
+}
+
+function exerciseMenu(s, ses, idx, def) {
+  const exId = ses.exercises[idx].exId;
   openModal((close) => html`
     <${Sheet} title=${def.name} onClose=${close}>
+      <${IntensityConfig} exId=${exId} />
       <div class="list">
-        <button class="li btnlike" onClick=${() => { close(); pickExercise((exId) => patchSession(ses.id, (x) => (x.exercises[idx].exId = exId))); }}><${Icon} name="swap" /><span class="t">Trocar exercício</span></button>
+        <button class="li btnlike" onClick=${() => { close(); openTargetEditor(s, ses, idx); }}><${Icon} name="target" /><span class="t">Meta e descanso…</span></button>
+        <button class="li btnlike" onClick=${() => { close(); pickExercise((id) => patchSession(ses.id, (x) => (x.exercises[idx].exId = id))); }}><${Icon} name="swap" /><span class="t">Trocar exercício</span></button>
         <button class="li btnlike" onClick=${() => { patchSession(ses.id, (x) => idx > 0 && x.exercises.splice(idx - 1, 0, x.exercises.splice(idx, 1)[0])); close(); }}><span class="t">↑ Mover para cima</span></button>
         <button class="li btnlike" onClick=${() => { patchSession(ses.id, (x) => idx < x.exercises.length - 1 && x.exercises.splice(idx + 1, 0, x.exercises.splice(idx, 1)[0])); close(); }}><span class="t">↓ Mover para baixo</span></button>
-        <button class="li btnlike" onClick=${() => {
-          const v = prompt('Descanso entre séries (segundos)', String(ses.exercises[idx].rest ?? 90));
-          if (v != null && Number(v) >= 0) patchSession(ses.id, (x) => (x.exercises[idx].rest = Number(v)));
-          close();
-        }}><span class="t">Descanso…</span></button>
         <button class="li btnlike" onClick=${() => { patchSession(ses.id, (x) => x.exercises.splice(idx, 1)); close(); }}><${Icon} name="trash" /><span class="t danger">Remover do treino</span></button>
       </div>
     <//>
   `);
+}
+
+// Por exercício: coluna RPE ou %RM e o 1RM usado como referência.
+function IntensityConfig({ exId }) {
+  const cur = useStore();
+  const cfg = cur.exerciseSettings?.[exId] ?? {};
+  const mode = intensityFor(cur, exId);
+  const est = bestE1rm(cur, exId);
+  const setCfg = (patch) => update((st) => {
+    st.exerciseSettings ??= {};
+    st.exerciseSettings[exId] = { ...(st.exerciseSettings[exId] ?? {}), ...patch };
+  });
+  return html`
+    <div class="card flat stack-sm">
+      <${Field} label="Coluna de intensidade neste exercício">
+        <${Seg} value=${mode} onChange=${(v) => setCfg({ intensity: v })} options=${[['rpe', 'RPE'], ['pct', '%RM'], ['none', 'Nenhuma']]} />
+      <//>
+      <${Field} label="1RM de referência" hint=${est ? `Estimado pelo histórico: ${num(est, 1)} kg. Deixe vazio para usar o estimado.` : 'Informe seu 1RM testado (ou use a calculadora na aba RM).'}>
+        <${NumInput} value=${cfg.oneRm ?? null} onInput=${(v) => setCfg({ oneRm: v })} unit="kg" step="0.5" placeholder=${est ? num(est, 1) : '—'} />
+      <//>
+    </div>
+  `;
 }
 
 function SessionSummary({ s, ses, prs, close }) {
@@ -578,6 +756,67 @@ function VolumeTab({ s, today }) {
             <span class="mono small right"><b>${num(sets[k], sets[k] % 1 ? 1 : 0)}</b></span>
           </div>
         `)}
+      </div>
+    </div>
+  `;
+}
+
+// --- RM: calculadora e 1RM de referência ----------------------------------------------------
+
+function RmTab({ s }) {
+  const [kg, setKg] = useState(100);
+  const [reps, setReps] = useState(5);
+  const [rpe, setRpe] = useState(null);
+  const est = oneRmEstimates(kg || 0, reps || 0, rpe);
+  const base = est.avg;
+  const pcts = [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50];
+  const configured = Object.entries(s.exerciseSettings ?? {}).filter(([, c]) => c.oneRm || c.intensity === 'pct').map(([id]) => id);
+  const lifts = [...new Set([...MAIN_LIFTS, ...configured])];
+  const setCfg = (exId, patch) => update((st) => {
+    st.exerciseSettings ??= {};
+    st.exerciseSettings[exId] = { ...(st.exerciseSettings[exId] ?? {}), ...patch };
+  });
+  return html`
+    <div class="stack">
+      <div class="card stack-sm">
+        <h3 class="up">Calculadora de 1RM</h3>
+        <div class="grid-3">
+          <${Field} label="Carga"><${NumInput} value=${kg} onInput=${setKg} unit="kg" step="0.5" /><//>
+          <${Field} label="Reps"><${NumInput} value=${reps} onInput=${setReps} step="1" /><//>
+          <${Field} label="RPE (opc.)"><${NumInput} value=${rpe} onInput=${setRpe} step="0.5" placeholder="—" /><//>
+        </div>
+        <div class="card ink tight">
+          <div class="row-sb"><span class="eyebrow">1RM estimado (média)</span><span class="big-num" style="font-size:34px">${num(base, 1)}<small style="font-size:14px"> kg</small></span></div>
+          <div class="mono tiny" style="margin-top:6px;opacity:.8">Epley ${num(est.epley, 1)} · Brzycki ${num(est.brzycki, 1)} · Lombardi ${num(est.lombardi, 1)}</div>
+        </div>
+        ${base > 0 && html`
+          <table class="rm-table">
+            <thead><tr><th>%</th><th>Carga</th><th>Reps aprox.</th></tr></thead>
+            <tbody>
+              ${pcts.map((p) => html`<tr><td>${p}%</td><td><b>${num(loadForPct(p, base), 1)} kg</b></td><td>${repsAtPct(p)}</td></tr>`)}
+            </tbody>
+          </table>
+        `}
+        <p class="tiny muted">Estimativas valem melhor até ~10 reps. Com RPE, as repetições em reserva entram no cálculo.</p>
+      </div>
+
+      <div class="section-head"><h3 class="up">Meus 1RM</h3><button class="btn xs dark" onClick=${() => pickExercise((id) => setCfg(id, { intensity: 'pct' }))}><${Icon} name="plus" size="14" />Exercício</button></div>
+      <p class="small muted">Escolha usar <b>%RM</b> no lugar de RPE nos exercícios principais. Na sessão, digite a % e a carga é calculada pelo 1RM de referência.</p>
+      <div class="list">
+        ${lifts.map((id) => {
+          const cfg = s.exerciseSettings?.[id] ?? {};
+          const e = bestE1rm(s, id);
+          return html`
+            <div class="li" key=${id} style="flex-wrap:wrap">
+              <div class="grow" style="min-width:150px">
+                <div class="t">${exerciseById(s, id).name}</div>
+                <div class="s mono">${e ? `Estimado: ${num(e, 1)} kg` : 'Sem histórico'}</div>
+              </div>
+              <div style="width:110px"><${NumInput} value=${cfg.oneRm ?? null} onInput=${(v) => setCfg(id, { oneRm: v })} unit="kg" step="0.5" placeholder=${e ? num(e, 1) : '1RM'} /></div>
+              <div style="flex-basis:100%"><${Seg} value=${intensityFor(s, id)} onChange=${(v) => setCfg(id, { intensity: v })} options=${[['rpe', 'RPE'], ['pct', '%RM'], ['none', 'Nenhuma']]} /></div>
+            </div>
+          `;
+        })}
       </div>
     </div>
   `;

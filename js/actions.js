@@ -103,8 +103,11 @@ export function startSession(workout, date = dateKey()) {
       exercises: (workout?.exercises ?? []).map((e) => ({
         exId: e.exId,
         target: e.reps,
+        targetRpe: e.targetRpe ?? null,
+        targetPct: e.targetPct ?? null,
+        targetKg: e.targetKg ?? null,
         rest: e.rest ?? 90,
-        sets: Array.from({ length: e.sets || 3 }, () => ({ kg: null, reps: null, rpe: null, pct: null, done: false, warmup: false })),
+        sets: Array.from({ length: e.sets || 3 }, () => ({ kg: e.targetKg ?? null, reps: null, rpe: null, pct: e.targetPct ?? null, done: false, kind: 'work', auto: { kg: true, pct: true } })),
       })),
     });
     st.activeSessionId = id;

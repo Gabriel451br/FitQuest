@@ -14,6 +14,12 @@ Acompanhe e **gamifique** sua jornada fitness: treino, dieta, avaliação físic
 - PR detectado em tempo real (1RM estimado — Epley, com RIR via RPE).
 - Histórico editável, gráfico de evolução por exercício (1RM, carga máx., volume) e **séries semanais por grupo muscular** com faixa de referência 10–20.
 
+**Outras atividades** (Corrida, Caminhada, Ciclismo, Natação, HIIT/Funcional, Esportes, Outro)
+- Treino separado por categoria; cada uma com suas métricas: distância, duração, pace (min/km ou /100 m) ou velocidade (km/h), FC média, elevação, cadência, rounds, RPE e kcal estimadas.
+- Cronômetro com pausa (continua contando com a tela bloqueada) ou registro manual; treinos planejados com meta de distância/tempo.
+- Histórico, volume semanal, gráficos de ritmo e FC, recordes (maior distância, melhor pace/velocidade) que valem XP e conquistas (5K, 10K, meia maratona…).
+- Excluir treinos da rotina e do histórico direto na lista.
+
 **Dieta**
 - Diário por refeição com a **Tabela TACO completa** (4ª ed., 591 alimentos) + alimentos personalizados; busca sem acento, recentes, copiar dia anterior.
 - **Cálculo de macros**: TMB (Mifflin-St Jeor ou Katch-McArdle quando há % de gordura), fator de atividade, ajuste por objetivo; recalcula sozinho quando você registra peso/BF. Metas manuais opcionais.

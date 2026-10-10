@@ -30,6 +30,11 @@ const PATHS = {
   download: 'M12 4v11M7 10l5 5 5-5M4 20h16',
   upload: 'M12 20V9M7 14l5-5 5 5M4 4h16',
   dots: 'M5 12h.01M12 12h.01M19 12h.01',
+  run: 'M14 4a1.5 1.5 0 1 0 0 .01M9 20l3-6 3 2v5M7 11l3-3 4 1 2 3 3 1M12 14l-2-3',
+  walk: 'M12 4a1.5 1.5 0 1 0 0 .01M10 21l2-7 3 3v4M9 12l2-4h2l2 4 2 1M12 14l-1-3',
+  bike: 'M6 17a3 3 0 1 0 0 .01M18 17a3 3 0 1 0 0 .01M6 17l4-7h5l3 7M10 10l2 7h3M14 6h2',
+  swim: 'M3 18c2 0 2-1.5 4.5-1.5S9.5 18 12 18s2-1.5 4.5-1.5S19 18 21 18M7 13l4-4 3 3M15 7a1.5 1.5 0 1 0 0 .01',
+  ball: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3.5 9h17M3.5 15h17M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18',
 };
 
 export function Icon({ name, size }) {
@@ -105,7 +110,7 @@ export function toast(msg, kind = '') {
     document.body.appendChild(toastHost);
   }
   const id = Math.random();
-  toasts = [...toasts, { id, msg, kind }];
+  toasts = [...toasts, { id, msg, kind }].slice(-3);
   drawToasts();
   setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== id);

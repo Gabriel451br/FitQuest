@@ -1,8 +1,9 @@
 // Ações de domínio reutilizadas entre telas.
 import { html, useState } from './lib.js';
 import { update, getState, finishedSessions } from './store.js';
-import { openModal, Sheet, Field, NumInput, toast } from './ui.js';
+import { openModal, Sheet, Field, NumInput, toast, confirmDialog } from './ui.js';
 import { dateKey, uid } from './util.js';
+import { ACTIVITIES, sessionType } from './cardio.js';
 
 export function addWater(date, ml) {
   update((s) => {
@@ -42,12 +43,31 @@ function WeighIn({ date, initial, close }) {
 }
 
 // Próximo treino da rotação: o seguinte ao último concluído.
-export function nextWorkout(s) {
-  if (!s.workouts.length) return null;
-  const last = finishedSessions(s).filter((x) => x.workoutId).pop();
-  if (!last) return s.workouts[0];
-  const i = s.workouts.findIndex((w) => w.id === last.workoutId);
-  return s.workouts[(i + 1) % s.workouts.length] ?? s.workouts[0];
+// Próximo treino da rotação de uma categoria (musculação por padrão).
+export function nextWorkout(s, type = 'strength') {
+  const list = s.workouts.filter((w) => (w.type ?? 'strength') === type);
+  if (!list.length) return type === 'strength' ? s.workouts[0] ?? null : null;
+  const last = finishedSessions(s).filter((x) => x.workoutId && sessionType(x) === type).pop();
+  if (!last) return list[0];
+  const i = list.findIndex((w) => w.id === last.workoutId);
+  return list[(i + 1) % list.length] ?? list[0];
+}
+
+export async function deleteSession(id) {
+  const ok = await confirmDialog('Excluir este treino do histórico? O XP ligado a ele também sai.', { ok: 'Excluir' });
+  if (!ok) return false;
+  update((st) => {
+    st.sessions = st.sessions.filter((x) => x.id !== id);
+    if (st.activeSessionId === id) st.activeSessionId = null;
+  });
+  return true;
+}
+
+export async function deleteWorkout(w) {
+  const ok = await confirmDialog(`Excluir o treino "${w.name}" da rotina? O histórico já registrado é mantido.`, { ok: 'Excluir' });
+  if (!ok) return false;
+  update((st) => { st.workouts = st.workouts.filter((x) => x.id !== w.id); });
+  return true;
 }
 
 export function startSession(workout, date = dateKey()) {
@@ -57,10 +77,25 @@ export function startSession(workout, date = dateKey()) {
     return;
   }
   const id = uid();
+  const type = workout?.type ?? 'strength';
+  if (type !== 'strength') {
+    update((st) => {
+      st.sessions.push({
+        id, date, type, workoutId: workout?.id ?? null,
+        name: workout?.name ?? ACTIVITIES[type].label,
+        startedAt: Date.now(), finishedAt: null, pausedMs: 0, pausedAt: null, exercises: [],
+        cardio: { kind: workout?.kind ?? null, distance: null, duration: null, target: workout?.target ?? null, notes: workout?.notes ?? '' },
+      });
+      st.activeSessionId = id;
+    });
+    location.hash = '#/treino/sessao';
+    return;
+  }
   update((st) => {
     st.sessions.push({
       id,
       date,
+      type: 'strength',
       workoutId: workout?.id ?? null,
       name: workout?.name ?? 'Treino livre',
       startedAt: Date.now(),

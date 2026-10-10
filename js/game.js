@@ -4,6 +4,9 @@
 import { sumMacros } from './foods.js';
 import { targets, finishedSessions, MEALS } from './selectors.js';
 import { computePRs, sessionStats, weeklySets } from './training.js';
+import { cardioPRs, cardioSessions, cardioTotals } from './cardio.js';
+
+export const allPRs = (s) => [...computePRs(s), ...cardioPRs(s)];
 import { dateKey, addDays, weekStart, diffDays } from './util.js';
 
 export const XP = {
@@ -67,7 +70,7 @@ function indexByDate(s) {
   const assessments = {};
   for (const a of s.assessments) (assessments[a.date] ??= []).push(a);
   const prs = {};
-  for (const p of computePRs(s)) (prs[p.date] ??= []).push(p);
+  for (const p of allPRs(s)) (prs[p.date] ??= []).push(p);
   return { sessions, weights, assessments, prs };
 }
 
@@ -161,6 +164,12 @@ export const ACHIEVEMENTS = [
   { id: 'v1000', icon: '1KT', name: 'Mil toneladas', desc: '1.000.000 kg de volume total', xp: 1000, test: (x) => x.volume >= 1000000 },
   { id: 'plan', icon: 'PLN', name: 'Estrategista', desc: 'Gere um plano alimentar', xp: 50, test: (x) => x.hasPlan },
   { id: 'goal1', icon: 'OBJ', name: 'Missão cumprida', desc: 'Conclua um objetivo pessoal', xp: 100, test: (x) => x.goalsDone >= 1 },
+  { id: 'c1', icon: 'CRD', name: 'Coração em dia', desc: 'Registre a 1ª atividade aeróbica', xp: 50, test: (x) => x.cardioCount >= 1 },
+  { id: 'c25', icon: 'C25', name: 'Cardio constante', desc: '25 atividades aeróbicas', xp: 250, test: (x) => x.cardioCount >= 25 },
+  { id: 'r5', icon: '5K', name: 'Primeiros 5 km', desc: 'Corra 5 km numa atividade', xp: 100, test: (x) => x.longestRun >= 5 },
+  { id: 'r10', icon: '10K', name: 'Dez mil', desc: 'Corra 10 km numa atividade', xp: 200, test: (x) => x.longestRun >= 10 },
+  { id: 'r21', icon: '21K', name: 'Meia maratona', desc: 'Corra 21,1 km numa atividade', xp: 500, test: (x) => x.longestRun >= 21.0975 },
+  { id: 'k100', icon: '100K', name: 'Estradeiro', desc: '100 km somando corrida, bike, etc.', xp: 300, test: (x) => x.cardioKm >= 100 },
   { id: 'wq', icon: 'WK', name: 'Semana completa', desc: 'Todas as missões de uma semana', xp: 250, test: (x) => x.fullWeeks >= 1 },
 ];
 
@@ -224,7 +233,7 @@ export function computeGame(s, today = dateKey()) {
   const dayList = Object.values(days);
   const facts = {
     workouts: fs.length,
-    prs: computePRs(s).length,
+    prs: allPRs(s).length,
     bestStreak,
     diaryDays: dayList.filter((d) => d.mealsLogged > 0).length,
     proteinDays: dayList.filter((d) => d.q.protein).length,
@@ -235,6 +244,9 @@ export function computeGame(s, today = dateKey()) {
     hasPlan: !!s.dietPlan,
     goalsDone,
     fullWeeks,
+    cardioCount: cardioSessions(s).length,
+    cardioKm: cardioTotals(cardioSessions(s)).km,
+    longestRun: Math.max(0, ...cardioSessions(s, 'run').map((x) => Number(x.cardio?.distance) || 0)),
   };
   const achievements = ACHIEVEMENTS.map((a) => ({ ...a, unlocked: a.test(facts) }));
   totalXp += achievements.filter((a) => a.unlocked).reduce((acc, a) => acc + a.xp, 0);

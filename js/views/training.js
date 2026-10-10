@@ -6,7 +6,9 @@ import { exerciseHistory, lastPerformance, bestE1rm, computePRs, sessionStats, w
 import { pctOf1rm, loadForPct } from '../calc.js';
 import { Icon, openModal, Sheet, Field, Seg, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
 import { LineChart } from '../charts.js';
-import { startSession, nextWorkout } from '../actions.js';
+import { startSession, nextWorkout, deleteSession, deleteWorkout } from '../actions.js';
+import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
+import { CardioHome, CardioLive } from './cardio.js';
 import { go } from '../nav.js';
 import { uid, normalize, num, fmtDate, weekdayShort, addDays, weekStart, toNum } from '../util.js';
 
@@ -14,6 +16,7 @@ export function TrainingView({ s, params, today }) {
   if (params[0] === 'sessao') {
     const id = params[1] ?? s.activeSessionId;
     const ses = s.sessions.find((x) => x.id === id);
+    if (ses && isCardio(ses)) return html`<${CardioLive} s=${s} ses=${ses} />`;
     if (ses) return html`<${SessionView} s=${s} ses=${ses} />`;
   }
   return html`<${TrainingHome} s=${s} today=${today} />`;
@@ -21,25 +24,38 @@ export function TrainingView({ s, params, today }) {
 
 function TrainingHome({ s, today }) {
   const [tab, setTab] = useState('rotina');
+  const cat = s.settings.trainCat && ACTIVITIES[s.settings.trainCat] ? s.settings.trainCat : 'strength';
+  const setCat = (c) => update((st) => { st.settings.trainCat = c; });
   const active = s.sessions.find((x) => x.id === s.activeSessionId && !x.finishedAt);
   return html`
     <div class="stack">
       <div class="page-head"><h1>Treino</h1></div>
       ${active && html`
         <button class="card ink row-sb" style="text-align:left;cursor:pointer" onClick=${() => go('treino/sessao')}>
-          <div><div class="eyebrow">Em andamento</div><h3 style="margin-top:4px">${active.name}</h3></div>
+          <div><div class="eyebrow">Em andamento · ${ACTIVITIES[sessionType(active)].label}</div><h3 style="margin-top:4px">${active.name}</h3></div>
           <span class="btn sm primary">Continuar</span>
         </button>
       `}
-      <div class="tabs">
-        ${[['rotina', 'Rotina'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume']].map(([k, l]) => html`
-          <button class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}>${l}</button>
+      <div class="cat-row" role="tablist" aria-label="Categoria de treino">
+        ${Object.entries(ACTIVITIES).map(([k, a]) => html`
+          <button role="tab" aria-selected=${cat === k} class=${`cat ${cat === k ? 'on' : ''}`} onClick=${() => setCat(k)}>
+            <${Icon} name=${a.icon} /><span>${a.short}</span>
+          </button>
         `)}
       </div>
-      ${tab === 'rotina' && html`<${RoutineTab} s=${s} today=${today} />`}
-      ${tab === 'historico' && html`<${HistoryTab} s=${s} />`}
-      ${tab === 'progresso' && html`<${ProgressTab} s=${s} />`}
-      ${tab === 'volume' && html`<${VolumeTab} s=${s} today=${today} />`}
+      ${cat === 'strength'
+        ? html`
+          <div class="tabs">
+            ${[['rotina', 'Rotina'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume']].map(([k, l]) => html`
+              <button class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}>${l}</button>
+            `)}
+          </div>
+          ${tab === 'rotina' && html`<${RoutineTab} s=${s} today=${today} />`}
+          ${tab === 'historico' && html`<${HistoryTab} s=${s} />`}
+          ${tab === 'progresso' && html`<${ProgressTab} s=${s} />`}
+          ${tab === 'volume' && html`<${VolumeTab} s=${s} today=${today} />`}
+        `
+        : html`<${CardioHome} key=${cat} s=${s} type=${cat} today=${today} />`}
     </div>
   `;
 }
@@ -48,7 +64,8 @@ function TrainingHome({ s, today }) {
 
 function RoutineTab({ s, today }) {
   const nw = nextWorkout(s);
-  if (!s.workouts.length) {
+  const workouts = s.workouts.filter((w) => (w.type ?? 'strength') === 'strength');
+  if (!workouts.length) {
     return html`
       <div class="stack">
         <${Empty} title="Sem rotina ainda" text="Comece com um modelo pronto ou monte seus treinos do zero." action=${html`<button class="btn primary" onClick=${() => editWorkout(s, null)}><${Icon} name="plus" />Criar treino</button>`} />
@@ -67,14 +84,15 @@ function RoutineTab({ s, today }) {
   return html`
     <div class="stack">
       <div class="list">
-        ${s.workouts.map((w) => html`
+        ${workouts.map((w) => html`
           <div class="li" key=${w.id}>
             <div class="grow">
               <div class="row"><span class="t">${w.name}</span>${nw?.id === w.id && html`<span class="tag acc">Próximo</span>`}</div>
               <div class="s">${w.exercises.length} exercícios · ${w.exercises.reduce((a, e) => a + (e.sets || 0), 0)} séries · ${[...new Set(w.exercises.map((e) => MUSCLES[exerciseById(s, e.exId).primary]))].slice(0, 4).join(', ')}</div>
             </div>
             <button class="icon-btn" onClick=${() => editWorkout(s, w)} aria-label="Editar"><${Icon} name="edit" /></button>
-            <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" />Iniciar</button>
+            <button class="icon-btn" onClick=${() => deleteWorkout(w)} aria-label="Excluir treino"><${Icon} name="trash" /></button>
+            <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" /><span class="hide-xs">Iniciar</span></button>
           </div>
         `)}
       </div>
@@ -89,11 +107,12 @@ function RoutineTab({ s, today }) {
 function applyTemplate(key) {
   const t = SPLIT_TEMPLATES[key];
   update((s) => {
-    s.workouts = t.workouts.map((w) => ({
+    s.workouts = [...s.workouts.filter((w) => (w.type ?? 'strength') !== 'strength'), ...t.workouts.map((w) => ({
       id: uid(),
+      type: 'strength',
       name: w.name,
       exercises: w.exercises.map((exId, i) => ({ exId, sets: i < 2 ? 4 : 3, reps: i < 2 ? '6-10' : '10-15', rest: i < 2 ? 150 : 90 })),
-    }));
+    }))];
   });
   toast(`Rotina ${t.name} criada`);
 }
@@ -119,18 +138,16 @@ function WorkoutEditor({ workout, close }) {
     update((s) => {
       const data = { name: name.trim(), exercises: items };
       if (workout) Object.assign(s.workouts.find((x) => x.id === workout.id), data);
-      else s.workouts.push({ id: uid(), ...data });
+      else s.workouts.push({ id: uid(), type: 'strength', ...data });
     });
     close();
   };
   const remove = async () => {
-    if (!(await confirmDialog(`Excluir o treino "${workout.name}"? O histórico é mantido.`, { ok: 'Excluir' }))) return;
-    update((s) => { s.workouts = s.workouts.filter((x) => x.id !== workout.id); });
-    close();
+    if (await deleteWorkout(workout)) close();
   };
   return html`
     <${Sheet} title=${workout ? 'Editar treino' : 'Novo treino'} onClose=${close} footer=${html`
-      ${workout && html`<button class="btn" onClick=${remove} aria-label="Excluir"><${Icon} name="trash" /></button>`}
+      ${workout && html`<button class="btn danger" onClick=${remove}><${Icon} name="trash" />Excluir</button>`}
       <button class="btn primary grow" onClick=${save}>Salvar</button>
     `}>
       <${Field} label="Nome"><input class="input" value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Ex.: Upper A, Peito/Tríceps" /><//>
@@ -276,7 +293,11 @@ function SessionView({ s, ses }) {
   };
 
   const discard = async () => {
-    if (!(await confirmDialog(editing ? 'Excluir este treino do histórico?' : 'Descartar este treino?', { ok: editing ? 'Excluir' : 'Descartar' }))) return;
+    if (editing) {
+      if (await deleteSession(ses.id)) go('treino');
+      return;
+    }
+    if (!(await confirmDialog('Descartar este treino?', { ok: 'Descartar' }))) return;
     update((root) => {
       root.sessions = root.sessions.filter((x) => x.id !== ses.id);
       if (root.activeSessionId === ses.id) root.activeSessionId = null;
@@ -461,7 +482,7 @@ function SessionSummary({ s, ses, prs, close }) {
 // --- Histórico ------------------------------------------------------------------------
 
 function HistoryTab({ s }) {
-  const list = finishedSessions(s).slice().reverse();
+  const list = finishedSessions(s).filter((x) => !isCardio(x)).reverse();
   const prs = computePRs(s);
   if (!list.length) return html`<${Empty} title="Nenhum treino ainda" text="Seus treinos concluídos aparecem aqui, com volume e recordes." />`;
   return html`
@@ -470,14 +491,16 @@ function HistoryTab({ s }) {
         const st = sessionStats(s, ses);
         const n = prs.filter((p) => p.sessionId === ses.id).length;
         return html`
-          <button class="li btnlike" key=${ses.id} onClick=${() => go(`treino/sessao/${ses.id}`)}>
+          <div class="li" key=${ses.id}>
+            <button class="row grow" style="background:none;border:0;padding:0;text-align:left;min-width:0" onClick=${() => go(`treino/sessao/${ses.id}`)}>
             <div style="width:44px" class="center"><div class="eyebrow">${weekdayShort(ses.date)}</div><div class="mono" style="font-weight:700;font-size:18px">${ses.date.slice(8)}</div></div>
             <div class="grow">
               <div class="row"><span class="t">${ses.name}</span>${n > 0 && html`<span class="pr-flag">${n} PR</span>`}</div>
               <div class="s">${fmtDate(ses.date, { year: true })} · ${st.sets} séries · ${num(st.volume)} kg${st.minutes ? ` · ${st.minutes} min` : ''}</div>
             </div>
-            <${Icon} name="chev" />
-          </button>
+            </button>
+            <button class="icon-btn" aria-label="Excluir treino" onClick=${() => deleteSession(ses.id)}><${Icon} name="trash" /></button>
+          </div>
         `;
       })}
     </div>

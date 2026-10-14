@@ -3,9 +3,18 @@ import { html, useState, useMemo } from '../lib.js';
 import { update, getState, targets, autoTargets, dayEntry, MEALS, latestWeight, currentBf } from '../store.js';
 import { searchFoods, getFood, macrosFor, sumMacros, categoryName } from '../foods.js';
 import { TACO, TACO_CATEGORIES } from '../data/taco.js';
-import { generatePlan, substitutes, POOLS } from '../dietgen.js';
+import { generatePlan, substitutes, POOLS, houseMeasure } from '../dietgen.js';
+import { MENU_TEMPLATES } from '../data/menus.js';
+
+// Alimentos que aparecem nos cardápios (para a lista "não gosto")
+const MENU_FOODS = [...new Set(MENU_TEMPLATES.flatMap((t) => t.items.map((i) => i[0])))].filter((id) => ![471, 260].includes(id));
+const shortName = (id) => {
+  const n = getFood(id)?.name ?? String(id);
+  return n.replace(/\s*\((rótulo|referência) médi[oa]\)/, '').split(',').slice(0, 2).join(',');
+};
 import { ACTIVITY, GOALS, kcalFromMacros } from '../calc.js';
-import { Icon, openModal, Sheet, Field, NumInput, Seg, Check, Ring, MacroRow, toast, confirmDialog, Stat } from '../ui.js';
+import { Icon, openModal, Sheet, Field, NumInput, Seg, Check, Ring, MacroRow, toast, confirmDialog, Stat, Empty } from '../ui.js';
+import { openScanner } from './scanner.js';
 import { addDays, fmtDate, weekdayShort, num, uid, dateKey } from '../util.js';
 
 export function DietView({ s, today }) {
@@ -14,12 +23,13 @@ export function DietView({ s, today }) {
     <div class="stack">
       <div class="page-head"><h1>Dieta</h1></div>
       <div class="tabs">
-        ${[['diario', 'Diário'], ['plano', 'Plano'], ['metas', 'Metas'], ['alimentos', 'TACO']].map(([k, l]) => html`
+        ${[['diario', 'Diário'], ['plano', 'Plano'], ['refeicoes', 'Refeições'], ['metas', 'Metas'], ['alimentos', 'TACO']].map(([k, l]) => html`
           <button class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}>${l}</button>
         `)}
       </div>
       ${tab === 'diario' && html`<${DiaryTab} s=${s} today=${today} />`}
       ${tab === 'plano' && html`<${PlanTab} s=${s} today=${today} />`}
+      ${tab === 'refeicoes' && html`<${SavedMealsTab} s=${s} />`}
       ${tab === 'metas' && html`<${TargetsTab} s=${s} />`}
       ${tab === 'alimentos' && html`<${FoodsTab} s=${s} />`}
     </div>
@@ -86,6 +96,7 @@ function MealCard({ s, date, meal, items }) {
       <div class="meal-head">
         <h3>${meal.label}</h3>
         ${items.length > 0 && html`<span class="mono tiny">${num(tot.kcal)} kcal · ${num(tot.p)}P</span>`}
+        ${items.length > 0 && html`<button class="btn xs" onClick=${() => saveMealFromDiary(items, meal.label)} aria-label="Salvar como refeição" title="Salvar como refeição"><${Icon} name="star" size="14" /></button>`}
         <button class="btn xs dark" onClick=${() => openFoodSearch(date, meal.key)} aria-label=${`Adicionar em ${meal.label}`}><${Icon} name="plus" size="14" /></button>
       </div>
       ${items.map((it) => {
@@ -143,10 +154,23 @@ async function applyPlan(plan, date) {
 // --- Busca de alimentos -----------------------------------------------------------------
 
 function openFoodSearch(date, meal) {
-  openModal((close) => html`<${FoodSearch} close=${close} onPick=${(f) => { close(); openPortion(f, { date, meal }); }} />`);
+  openModal((close) => html`<${FoodSearch}
+    close=${close}
+    onPick=${(f) => { close(); openPortion(f, { date, meal }); }}
+    onSavedMeal=${(sm) => { close(); addItems(date, meal, sm.items); toast(`${sm.name} adicionada`); }}
+    onScanned=${(f, g) => { close(); openPortion(f, { date, meal, defaultG: g }); }}
+  />`);
 }
 
-function FoodSearch({ close, onPick }) {
+// Escaneia e devolve um alimento salvo (já existente ou recém-cadastrado) + porção sugerida.
+export function scanFood(onReady) {
+  openScanner({
+    onFound: (food, g) => onReady(food, g),
+    onNew: (prefill) => openCustomFood(null, { prefill, title: prefill.name ? 'Confirmar produto' : 'Cadastrar produto', onSaved: (rec) => onReady(rec, rec.serving ?? 100) }),
+  });
+}
+
+function FoodSearch({ close, onPick, onSavedMeal, onScanned }) {
   const s = getState();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState(null);
@@ -159,6 +183,14 @@ function FoodSearch({ close, onPick }) {
   }, [q, cat]);
   return html`
     <${Sheet} title="Adicionar alimento" onClose=${close} full sub=${html`
+      <div class="row">
+        <button class="btn sm dark grow" onClick=${() => scanFood((f, g) => (onScanned ? onScanned(f, g) : onPick(f)))}><${Icon} name="scan" />Escanear código</button>
+      </div>
+      ${onSavedMeal && (s.savedMeals ?? []).length > 0 && html`
+        <div class="chips" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px">
+          ${(s.savedMeals ?? []).map((sm) => html`<button class="chip saved-chip" style="white-space:nowrap" onClick=${() => onSavedMeal(sm)}>★ ${sm.name} · ${num(sumMacros(sm.items).kcal)} kcal</button>`)}
+        </div>
+      `}
       <input class="input" type="search" enterkeyhint="search" placeholder="Buscar na TACO: frango, arroz, banana…" value=${q} onInput=${(e) => setQ(e.target.value)} />
       <div class="chips" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">
         <button class=${`chip ${!cat ? 'on' : ''}`} onClick=${() => setCat(null)}>Todas</button>
@@ -188,11 +220,15 @@ function openPortion(food, ctx) {
 }
 
 function Portion({ food, ctx, close }) {
-  const [g, setG] = useState(ctx.item?.g ?? 100);
+  const [g, setG] = useState(ctx.item?.g ?? ctx.defaultG ?? 100);
   const [meal, setMeal] = useState(ctx.meal);
   const m = macrosFor(food, g || 0);
   const save = () => {
     if (!g || g <= 0) return toast('Informe a quantidade');
+    if (ctx.onSave) {
+      ctx.onSave(food.id, g);
+      return close();
+    }
     if (ctx.item) {
       update((s) => {
         const src = s.diary[ctx.date].meals[ctx.meal];
@@ -224,11 +260,92 @@ function Portion({ food, ctx, close }) {
         <${Stat} v=${num(m.c, 1)} unit="g" l="Carb" />
         <${Stat} v=${num(m.f, 1)} unit="g" l="Gord" />
       </div>
-      <${Field} label="Refeição">
-        <select class="input" value=${meal} onChange=${(e) => setMeal(e.target.value)}>
-          ${MEALS.map((x) => html`<option value=${x.key}>${x.label}</option>`)}
-        </select>
-      <//>
+      ${!ctx.onSave && html`
+        <${Field} label="Refeição">
+          <select class="input" value=${meal} onChange=${(e) => setMeal(e.target.value)}>
+            ${MEALS.map((x) => html`<option value=${x.key}>${x.label}</option>`)}
+          </select>
+        <//>
+      `}
+    <//>
+  `;
+}
+
+// --- Refeições salvas ------------------------------------------------------------------
+
+function saveMealFromDiary(items, label) {
+  openModal((close) => html`<${SavedMealEditor} initial=${{ name: label, items: items.map((x) => ({ foodId: x.foodId, g: x.g })) }} close=${close} />`);
+}
+
+function SavedMealsTab({ s }) {
+  const list = s.savedMeals ?? [];
+  return html`
+    <div class="stack">
+      <p class="small muted">Salve combinações que você repete (ex.: “Café de sempre”) e adicione tudo com um toque no diário — aparece no topo da busca de alimentos.</p>
+      <button class="btn primary" onClick=${() => openModal((close) => html`<${SavedMealEditor} close=${close} />`)}><${Icon} name="plus" />Nova refeição</button>
+      ${!list.length && html`<${Empty} title="Nenhuma refeição salva" text="Crie aqui ou toque em ★ numa refeição do diário para salvá-la." />`}
+      ${list.map((sm) => {
+        const t = sumMacros(sm.items);
+        return html`
+          <div class="meal" key=${sm.id}>
+            <div class="meal-head">
+              <h3>★ ${sm.name}</h3>
+              <span class="mono tiny">${num(t.kcal)} kcal · ${num(t.p)}P</span>
+              <button class="btn xs" onClick=${() => openModal((close) => html`<${SavedMealEditor} meal=${sm} close=${close} />`)} aria-label="Editar"><${Icon} name="edit" size="14" /></button>
+            </div>
+            ${sm.items.map((it, i) => html`<div class="food-li" key=${i}><div class="grow"><div class="t">${getFood(it.foodId)?.name ?? 'Alimento removido'}</div><div class="s">${num(it.g)} g · ${fmtMacros(macrosFor(it.foodId, it.g))}</div></div></div>`)}
+          </div>
+        `;
+      })}
+    </div>
+  `;
+}
+
+function SavedMealEditor({ meal, initial, close }) {
+  const [name, setName] = useState(meal?.name ?? initial?.name ?? '');
+  const [items, setItems] = useState(meal?.items ?? initial?.items ?? []);
+  const t = sumMacros(items);
+  const addFood = () => {
+    openModal((c2) => html`<${FoodSearch} close=${c2} onPick=${(f) => { c2(); openPortion(f, { onSave: (foodId, g) => setItems((cur) => [...cur, { foodId, g }]) }); }} />`);
+  };
+  const save = () => {
+    if (!name.trim()) return toast('Dê um nome à refeição');
+    if (!items.length) return toast('Adicione ao menos um alimento');
+    update((st) => {
+      st.savedMeals ??= [];
+      const rec = { id: meal?.id ?? uid(), name: name.trim(), items };
+      const i = st.savedMeals.findIndex((x) => x.id === rec.id);
+      if (i >= 0) st.savedMeals[i] = rec;
+      else st.savedMeals.push(rec);
+    });
+    toast('Refeição salva');
+    close();
+  };
+  const remove = async () => {
+    if (!(await confirmDialog(`Excluir a refeição "${meal.name}"?`, { ok: 'Excluir' }))) return;
+    update((st) => { st.savedMeals = (st.savedMeals ?? []).filter((x) => x.id !== meal.id); });
+    close();
+  };
+  return html`
+    <${Sheet} title=${meal ? 'Editar refeição' : 'Nova refeição'} onClose=${close} footer=${html`
+      ${meal && html`<button class="btn danger" onClick=${remove}><${Icon} name="trash" /></button>`}
+      <button class="btn primary grow" onClick=${save}>Salvar</button>
+    `}>
+      <${Field} label="Nome"><input class="input" value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Ex.: Café de sempre, Pós-treino" /><//>
+      <div class="mono small">${num(t.kcal)} kcal · P ${num(t.p)} · C ${num(t.c)} · G ${num(t.f)}</div>
+      <div class="list">
+        ${items.map((it, i) => html`
+          <div class="food-li" key=${i + ':' + it.foodId}>
+            <div class="grow"><div class="t">${getFood(it.foodId)?.name ?? '—'}</div></div>
+            <div style="width:96px"><${NumInput} value=${it.g} onInput=${(v) => setItems((cur) => cur.map((x, j) => (j === i ? { ...x, g: v || 0 } : x)))} unit="g" /></div>
+            <button class="x-btn" aria-label="Remover" onClick=${() => setItems((cur) => cur.filter((_, j) => j !== i))}>×</button>
+          </div>
+        `)}
+      </div>
+      <div class="row">
+        <button class="btn grow" onClick=${addFood}><${Icon} name="plus" />Alimento</button>
+        <button class="btn grow" onClick=${() => scanFood((f, g) => setItems((cur) => [...cur, { foodId: f.id, g }]))}><${Icon} name="scan" />Escanear</button>
+      </div>
     <//>
   `;
 }
@@ -237,7 +354,7 @@ function Portion({ food, ctx, close }) {
 
 const DEFAULT_ANSWERS = {
   meals: 5, vegetarian: false, vegan: false, lactoseFree: false, glutenFree: false,
-  noFish: false, noSupplements: false, nutAllergy: false, includeLegumes: true, includeFruit: true,
+  noFish: false, noPork: false, noSoy: false, noSupplements: false, nutAllergy: false, lightDinner: false, includeLegumes: true, includeFruit: true,
   preferredProteins: [], preferredCarbs: [], excluded: [],
 };
 
@@ -265,16 +382,28 @@ function PlanTab({ s, today }) {
         </div>
       </div>
       ${outdated && html`<div class="callout warn small">Suas metas mudaram desde que o plano foi gerado. <button class="link-btn" onClick=${regen}>Recalcular</button></div>`}
+      ${(() => {
+        const dev = Math.max(...[[tot.kcal, t.kcal], [tot.p, t.protein], [tot.c, t.carbs]].map(([v, g]) => Math.abs(v - g) / g));
+        return dev > 0.1 && html`<div class="callout warn small">Com essas restrições o plano ficou ${Math.round(dev * 100)}% fora de alguma meta. Aumentar o número de refeições ou incluir mais fontes de proteína ajuda.</div>`;
+      })()}
       ${plan.meals.map((m) => {
         const mt = sumMacros(m.items);
+        const opts = m.options ?? [];
         return html`
           <div class="meal" key=${m.key}>
             <div class="meal-head"><h3>${MEALS.find((x) => x.key === m.key).label}</h3><span class="mono tiny">${num(mt.kcal)} kcal · ${num(mt.p)}P · ${num(mt.c)}C · ${num(mt.f)}G</span></div>
+            ${opts.length > 1 && html`
+              <div class="opt-row">
+                ${opts.map((o, oi) => html`<button class=${`chip ${(m.choice ?? 0) === oi ? 'on' : ''}`} onClick=${() => chooseOption(m.key, oi)}>Opção ${oi + 1}</button>`)}
+              </div>
+            `}
+            ${m.name && html`<div class="meal-name">${m.name}</div>`}
             ${m.items.map((it, i) => {
               const f = getFood(it.foodId);
+              const hm = houseMeasure(it.foodId, it.g);
               return html`
                 <div class="food-li" key=${i}>
-                  <div class="grow"><div class="t">${f.name}</div><div class="s">${num(it.g)} g · ${fmtMacros(macrosFor(f, it.g))}</div></div>
+                  <div class="grow"><div class="t">${hm ? html`<b>${hm}</b> · ` : ''}${f.name}</div><div class="s">${num(it.g)} g · ${fmtMacros(macrosFor(f, it.g))}</div></div>
                   <button class="x-btn" aria-label="Substituir" title="Substituir" onClick=${() => openSubstitutes(m.key, i, it)}><${Icon} name="swap" size="14" /></button>
                 </div>
               `;
@@ -290,6 +419,17 @@ function PlanTab({ s, today }) {
       <p class="tiny muted">Porções em peso pronto para consumo (exceto quando indicado “cru”). Valores da TACO/UNICAMP. Plano automático é ponto de partida — ajuste com um nutricionista se tiver condições de saúde específicas.</p>
     </div>
   `;
+}
+
+function chooseOption(mealKey, oi) {
+  update((st) => {
+    const m = st.dietPlan.meals.find((x) => x.key === mealKey);
+    const o = m.options?.[oi];
+    if (!o) return;
+    m.choice = oi;
+    m.items = o.items.map((x) => ({ ...x }));
+    m.name = o.name;
+  });
 }
 
 function openSubstitutes(mealKey, idx, item) {
@@ -328,7 +468,7 @@ function PlanForm({ initial, t, onDone, canCancel }) {
       <div class="card accent">
         <div class="eyebrow">Gerador automático</div>
         <h2 style="margin-top:4px">Monte seu plano em 1 minuto</h2>
-        <p class="small" style="margin-top:6px">Meta: <b class="mono">${num(t.kcal)} kcal · P ${t.protein} · C ${t.carbs} · G ${t.fat}</b>. Ajuste as metas na aba Metas.</p>
+        <p class="small" style="margin-top:6px">Cardápios brasileiros prontos (arroz e feijão, tapioca, cuscuz, omelete…) com 3 opções por refeição. Só as quantidades mudam para bater sua meta: <b class="mono">${num(t.kcal)} kcal · P ${t.protein} · C ${t.carbs} · G ${t.fat}</b>. Ajuste as metas na aba Metas.</p>
       </div>
       <${Field} label="Quantas refeições por dia?">
         <${Seg} value=${a.meals} onChange=${set('meals')} options=${[3, 4, 5, 6].map((n) => [n, String(n)])} />
@@ -342,13 +482,12 @@ function PlanForm({ initial, t, onDone, canCancel }) {
           <${Check} checked=${a.noFish} onChange=${set('noFish')}>Sem peixe<//>
           <${Check} checked=${a.nutAllergy} onChange=${set('nutAllergy')}>Sem oleaginosas<//>
           <${Check} checked=${a.noSupplements} onChange=${set('noSupplements')}>Sem suplementos<//>
+          <${Check} checked=${a.noPork} onChange=${set('noPork')}>Sem carne de porco<//>
+          <${Check} checked=${a.noSoy} onChange=${set('noSoy')}>Sem soja<//>
         </div>
       <//>
-      <${Field} label="Incluir">
-        <div class="grid-2">
-          <${Check} checked=${a.includeLegumes} onChange=${set('includeLegumes')}>Feijão/lentilha<//>
-          <${Check} checked=${a.includeFruit} onChange=${set('includeFruit')}>Frutas no café<//>
-        </div>
+      <${Field} label="Estilo">
+        <${Check} checked=${a.lightDinner} onChange=${set('lightDinner')}>Jantar mais leve (menos carboidrato à noite)<//>
       <//>
       <${Field} label="Proteínas preferidas" hint="Opcional. Deixe vazio para variar entre todas.">
         <div class="chips">${proteins.map((p) => html`<button class=${`chip ${a.preferredProteins.includes(p.id) ? 'on' : ''}`} onClick=${() => toggleIn('preferredProteins', p.id)}>${p.label}</button>`)}</div>
@@ -357,7 +496,7 @@ function PlanForm({ initial, t, onDone, canCancel }) {
         <div class="chips">${carbs.map((p) => html`<button class=${`chip ${a.preferredCarbs.includes(p.id) ? 'on' : ''}`} onClick=${() => toggleIn('preferredCarbs', p.id)}>${p.label}</button>`)}</div>
       <//>
       <${Field} label="Não gosto / não como" hint="Esses alimentos ficam de fora.">
-        <div class="chips">${[...proteins, ...carbs, ...POOLS.fruit, ...POOLS.fat, ...POOLS.veg].filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i).map((p) => html`<button class=${`chip ${a.excluded.includes(p.id) ? 'on' : ''}`} onClick=${() => toggleIn('excluded', p.id)}>${p.label}</button>`)}</div>
+        <div class="chips">${MENU_FOODS.map((id) => html`<button class=${`chip ${a.excluded.includes(id) ? 'on' : ''}`} onClick=${() => toggleIn('excluded', id)}>${shortName(id)}</button>`)}</div>
       <//>
       <div class="row">
         ${canCancel && html`<button class="btn" onClick=${onDone}>Cancelar</button>`}
@@ -452,21 +591,37 @@ function FoodsTab({ s }) {
   `;
 }
 
-function openCustomFood(food) {
-  openModal((close) => html`<${CustomFood} food=${food} close=${close} />`);
+export function openCustomFood(food, { prefill, onSaved, title } = {}) {
+  openModal((close) => html`<${CustomFood} food=${food} prefill=${prefill} onSaved=${onSaved} title=${title} close=${close} />`);
 }
 
-function CustomFood({ food, close }) {
-  const [f, setF] = useState(food ?? { name: '', kcal: null, p: null, c: null, f: null, fiber: 0, sodium: 0 });
+function CustomFood({ food, prefill, onSaved, title, close }) {
+  const [f, setF] = useState(food ?? { name: '', kcal: null, p: null, c: null, f: null, fiber: 0, sodium: 0, ...(prefill ?? {}) });
   const set = (k) => (v) => setF((o) => ({ ...o, [k]: v }));
+  const [basis, setBasis] = useState('100');
+  const [portion, setPortion] = useState(f.serving ?? 30);
   const save = () => {
     if (!f.name?.trim()) return toast('Informe o nome');
-    const rec = { id: food?.id ?? `c-${uid()}`, name: f.name.trim(), cat: 99, kcal: f.kcal ?? kcalFromMacros(f.p || 0, f.c || 0, f.f || 0), p: f.p || 0, c: f.c || 0, f: f.f || 0, fiber: f.fiber || 0, sodium: f.sodium || 0 };
+    if (basis === 'porcao') {
+      if (!portion || portion <= 0) return toast('Informe o tamanho da porção');
+      const k = 100 / portion;
+      const conv = (v) => (v == null ? v : Math.round(v * k * 10) / 10);
+      f.p = conv(f.p); f.c = conv(f.c); f.f = conv(f.f); f.kcal = f.kcal == null ? null : Math.round(f.kcal * k);
+      f.fiber = conv(f.fiber); f.sodium = f.sodium == null ? f.sodium : Math.round(f.sodium * k);
+      f.serving = portion;
+    }
+    const rec = {
+      id: food?.id ?? `c-${uid()}`, name: f.name.trim(), cat: 99,
+      kcal: f.kcal ?? kcalFromMacros(f.p || 0, f.c || 0, f.f || 0), p: f.p || 0, c: f.c || 0, f: f.f || 0,
+      fiber: f.fiber || 0, sodium: f.sodium || 0,
+      ...(f.barcode ? { barcode: String(f.barcode) } : {}), ...(f.serving ? { serving: f.serving } : {}),
+    };
     update((s) => {
       s.customFoods = s.customFoods.filter((x) => x.id !== rec.id);
       s.customFoods.push(rec);
     });
     close();
+    onSaved?.(rec);
   };
   const remove = async () => {
     if (!(await confirmDialog('Excluir este alimento? Registros antigos com ele ficarão sem valores.', { ok: 'Excluir' }))) return;
@@ -474,12 +629,17 @@ function CustomFood({ food, close }) {
     close();
   };
   return html`
-    <${Sheet} title=${food ? 'Editar alimento' : 'Novo alimento'} onClose=${close} footer=${html`
+    <${Sheet} title=${title ?? (food ? 'Editar alimento' : 'Novo alimento')} onClose=${close} footer=${html`
       ${food && html`<button class="btn" onClick=${remove} aria-label="Excluir"><${Icon} name="trash" /></button>`}
       <button class="btn primary grow" onClick=${save}>Salvar</button>
     `}>
       <${Field} label="Nome"><input class="input" value=${f.name} onInput=${(e) => set('name')(e.target.value)} placeholder="Ex.: Barra de proteína X" /><//>
-      <p class="eyebrow">Valores por 100 g</p>
+      <${Field} label="Valores informados por" hint=${basis === 'porcao' ? 'Copie direto do rótulo; o app converte para 100 g ao salvar.' : null}>
+        <div class="row">
+          <${Seg} value=${basis} onChange=${setBasis} options=${[['100', '100 g'], ['porcao', 'Porção']]} />
+          ${basis === 'porcao' && html`<div style="width:120px"><${NumInput} value=${portion} onInput=${setPortion} unit="g" /></div>`}
+        </div>
+      <//>
       <div class="grid-2">
         <${Field} label="Proteína"><${NumInput} value=${f.p} onInput=${set('p')} unit="g" /><//>
         <${Field} label="Carboidrato"><${NumInput} value=${f.c} onInput=${set('c')} unit="g" /><//>
@@ -488,6 +648,9 @@ function CustomFood({ food, close }) {
         <${Field} label="Fibra"><${NumInput} value=${f.fiber} onInput=${set('fiber')} unit="g" /><//>
         <${Field} label="Sódio"><${NumInput} value=${f.sodium} onInput=${set('sodium')} unit="mg" /><//>
       </div>
+      <${Field} label="Código de barras (opcional)" hint="Com o código salvo, escanear de novo já encontra este alimento.">
+        <input class="input num" inputmode="numeric" value=${f.barcode ?? ''} onInput=${(e) => set('barcode')(e.target.value.replace(/\D/g, ''))} />
+      <//>
     <//>
   `;
 }

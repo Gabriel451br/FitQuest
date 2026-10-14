@@ -18,6 +18,7 @@ export function emptyState() {
     profile: null, // { name, sex, birthYear, height, activity, goal, trainDays, startWeight, createdAt }
     manualTargets: null, // { kcal, protein, carbs, fat, water } quando o usuário sobrescreve
     customFoods: [],
+    savedMeals: [], // [{ id, name, items: [{ foodId, g }] }]
     recentFoods: [],
     diary: {}, // { [date]: { meals: { [meal]: [{ id, foodId, g }] }, water: ml } }
     dietPlan: null,

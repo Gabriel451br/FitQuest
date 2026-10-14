@@ -1,6 +1,6 @@
 // Componentes de UI compartilhados.
-import { html, render, useEffect, useState } from './lib.js';
-import { num, clamp } from './util.js';
+import { html, render, useEffect, useState, useRef } from './lib.js';
+import { num, clamp, toNum } from './util.js';
 
 // --- Ícones (traço 2px, quadrados — combina com o visual brutalista) ---------
 const PATHS = {
@@ -30,6 +30,8 @@ const PATHS = {
   download: 'M12 4v11M7 10l5 5 5-5M4 20h16',
   upload: 'M12 20V9M7 14l5-5 5 5M4 4h16',
   dots: 'M5 12h.01M12 12h.01M19 12h.01',
+  scan: 'M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 8v8M10 8v8M13 8v8M17 8v8',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
   users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20c0-3.5 3-6 7-6s7 2.5 7 6M17 11a3 3 0 1 0 0-6M19 14c2 .7 3 2.5 3 6',
   heart: 'M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z',
   search: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5 21 21',
@@ -144,21 +146,51 @@ export function Field({ label, hint, children }) {
   return html`<label class="field"><span>${label}</span>${children}${hint && html`<small class="hint">${hint}</small>`}</label>`;
 }
 
-export function NumInput({ value, onInput, unit, placeholder, step = 'any', min, max, ...rest }) {
+// Campo numérico: seleciona tudo ao tocar (digita por cima), aceita vírgula ou
+// ponto e mantém o texto enquanto se digita ("82," não vira "82").
+const fmtNum = (v) => (v == null || v === '' || Number.isNaN(v) ? '' : String(v).replace('.', ','));
+
+function selectAll(el) {
+  // iOS precisa do setTimeout; input type=text permite setSelectionRange
+  setTimeout(() => {
+    try { el.setSelectionRange(0, el.value.length); } catch { el.select?.(); }
+  }, 0);
+}
+
+export function NumField({ value, onValue, class: cls = 'input num', decimals = true, ...rest }) {
+  const [str, setStr] = useState(fmtNum(value));
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setStr(fmtNum(value));
+  }, [value]);
+  return html`
+    <input
+      class=${cls}
+      type="text"
+      inputmode=${decimals ? 'decimal' : 'numeric'}
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"
+      enterkeyhint="done"
+      value=${str}
+      onFocus=${(e) => { focused.current = true; selectAll(e.target); }}
+      onMouseUp=${(e) => e.preventDefault()}
+      onBlur=${() => { focused.current = false; setStr(fmtNum(value)); }}
+      onInput=${(e) => {
+        const v = e.target.value.replace(/[^0-9.,-]/g, '');
+        setStr(v);
+        onValue(toNum(v));
+      }}
+      ...${rest}
+    />
+  `;
+}
+
+export function NumInput({ value, onInput, unit, placeholder, step, min, max, ...rest }) {
+  const decimals = step !== '1';
   return html`
     <div class="input-unit">
-      <input
-        class="input num"
-        type="number"
-        inputmode="decimal"
-        step=${step}
-        min=${min}
-        max=${max}
-        placeholder=${placeholder}
-        value=${value ?? ''}
-        onInput=${(e) => onInput(e.target.value === '' ? null : Number(e.target.value))}
-        ...${rest}
-      />
+      <${NumField} value=${value} onValue=${onInput} placeholder=${placeholder} decimals=${decimals} ...${rest} />
       ${unit && html`<em>${unit}</em>`}
     </div>
   `;

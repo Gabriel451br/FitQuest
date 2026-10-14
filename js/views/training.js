@@ -4,12 +4,13 @@ import { update, getState, useStore, allExercises, exerciseById, finishedSession
 import { MUSCLES, SPLIT_TEMPLATES, WEEKLY_SET_TARGET } from '../data/exercises.js';
 import { exerciseHistory, lastPerformance, bestE1rm, computePRs, sessionStats, weeklySets, suggestNext, setE1rm, SET_KINDS, setKind, isWarmup, oneRmRef, MAIN_LIFTS } from '../training.js';
 import { pctOf1rm, loadForPct, oneRmEstimates, repsAtPct } from '../calc.js';
-import { Icon, openModal, Sheet, Field, Seg, Check, NumInput, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
+import { Icon, openModal, Sheet, Field, Seg, Check, NumInput, NumField, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
 import { LineChart } from '../charts.js';
 import { startSession, nextWorkout, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
 import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
 import { CardioHome, CardioLive } from './cardio.js';
 import { go } from '../nav.js';
+import { alarm, prime, keepAwake } from '../sound.js';
 import { uid, normalize, num, fmtDate, weekdayShort, addDays, weekStart, toNum } from '../util.js';
 
 export function TrainingView({ s, params, today }) {
@@ -225,9 +226,9 @@ function WorkoutEditor({ workout, close }) {
               </div>
             </div>
             <div class="grid-3" style="margin-top:8px">
-              <${Field} label="Séries"><input class="input num" type="number" inputmode="numeric" value=${it.sets} onInput=${(e) => patch(i, 'sets', Number(e.target.value) || 1)} /><//>
+              <${Field} label="Séries"><${NumField} decimals=${false} value=${it.sets} onValue=${(v) => patch(i, 'sets', v || 1)} /><//>
               <${Field} label="Reps"><input class="input num" value=${it.reps} onInput=${(e) => patch(i, 'reps', e.target.value)} placeholder="8-12" /><//>
-              <${Field} label="Descanso"><input class="input num" type="number" inputmode="numeric" value=${it.rest ?? 90} onInput=${(e) => patch(i, 'rest', Number(e.target.value) || 0)} /><//>
+              <${Field} label="Descanso"><${NumField} decimals=${false} value=${it.rest ?? 90} onValue=${(v) => patch(i, 'rest', v || 0)} /><//>
             </div>
           </div>
         `)}
@@ -305,21 +306,8 @@ function startRest(sec) {
   restListeners.forEach((f) => f(restEnd));
 }
 
-function beep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 0.25, 0.5].forEach((t) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.frequency.value = 880;
-      g.gain.setValueAtTime(0.25, ctx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.18);
-      o.connect(g).connect(ctx.destination);
-      o.start(ctx.currentTime + t);
-      o.stop(ctx.currentTime + t + 0.2);
-    });
-  } catch { /* sem áudio */ }
-}
+// segundos restantes calculados na hora do toque (toques rápidos seguidos não se perdem)
+const restLeft = () => Math.max(0, Math.ceil((restEnd - Date.now()) / 1000));
 
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
@@ -334,8 +322,7 @@ function SessionBar({ ses, st, onFinish }) {
   const left = end ? Math.max(0, Math.ceil((end - now) / 1000)) : 0;
   useEffect(() => {
     if (end && left === 0) {
-      navigator.vibrate?.([200, 100, 200]);
-      beep();
+      alarm();
       startRest(0);
     }
   }, [left === 0]);
@@ -350,8 +337,8 @@ function SessionBar({ ses, st, onFinish }) {
       ${resting
         ? html`
           <div class="sb-actions">
-            <button onClick=${() => startRest(Math.max(1, left - 15))}>−15</button>
-            <button onClick=${() => startRest(left + 15)}>+15</button>
+            <button onClick=${() => { prime(); startRest(Math.max(1, restLeft() - 15)); }}>−15</button>
+            <button onClick=${() => { prime(); startRest(restLeft() + 15); }}>+15</button>
             <button onClick=${() => startRest(0)}>Pular</button>
           </div>`
         : html`
@@ -372,6 +359,12 @@ const newSet = (extra = {}) => ({ kg: null, reps: null, rpe: null, pct: null, do
 
 function SessionView({ s, ses }) {
   const editing = !!ses.finishedAt;
+  // tela ligada durante o treino: sem isso o iPhone congela o app e o alarme não toca
+  useEffect(() => {
+    if (editing) return undefined;
+    keepAwake(true);
+    return () => keepAwake(false);
+  }, [editing]);
   const st = sessionStats(s, ses);
 
   const finish = async () => {
@@ -512,7 +505,10 @@ function ExerciseLog({ s, ses, ex, idx }) {
       }
       st.done = !st.done;
     });
-    if (!set.done && !ses.finishedAt) startRest(isWarmup(set) ? Math.min(60, ex.rest ?? 90) : ex.rest ?? 90);
+    if (!set.done && !ses.finishedAt) {
+      prime(); // libera o áudio no próprio toque (exigência do iPhone)
+      startRest(isWarmup(set) ? Math.min(60, ex.rest ?? 90) : ex.rest ?? 90);
+    }
   };
 
   let workN = 0;
@@ -562,10 +558,10 @@ function ExerciseLog({ s, ses, ex, idx }) {
                   </button>
                   ${isPr && html`<div class="pr-flag">PR</div>`}
                 </td>
-                <td><input class=${`input ${a.kg ? 'auto' : ''}`} type="number" inputmode="decimal" step="any" placeholder=${prev ? num(prev.kg, 1) : (!warm && sug?.kg) || '—'} value=${st.kg ?? ''} onInput=${(e) => patchSet(j, 'kg', toNum(e.target.value))} aria-label="Carga" /></td>
-                <td><input class=${`input ${a.reps ? 'auto' : ''}`} type="number" inputmode="numeric" placeholder=${prev?.reps ?? '—'} value=${st.reps ?? ''} onInput=${(e) => patchSet(j, 'reps', toNum(e.target.value))} aria-label="Repetições" /></td>
-                ${mode === 'rpe' && html`<td><input class=${`input ${a.rpe ? 'auto' : ''}`} type="number" inputmode="decimal" step="0.5" min="5" max="10" placeholder=${ex.targetRpe ?? '—'} value=${st.rpe ?? ''} onInput=${(e) => patchSet(j, 'rpe', toNum(e.target.value))} aria-label="RPE" /></td>`}
-                ${mode === 'pct' && html`<td><input class=${`input ${a.pct ? 'auto' : ''}`} type="number" inputmode="numeric" placeholder=${pctShown ?? ex.targetPct ?? '—'} value=${st.pct ?? ''} onInput=${(e) => patchSet(j, 'pct', toNum(e.target.value))} aria-label="% de 1RM" /></td>`}
+                <td><${NumField} class=${`input ${a.kg ? 'auto' : ''}`} placeholder=${prev ? num(prev.kg, 1) : (!warm && sug?.kg) || '—'} value=${st.kg} onValue=${(v) => patchSet(j, 'kg', v)} aria-label="Carga" /></td>
+                <td><${NumField} class=${`input ${a.reps ? 'auto' : ''}`} decimals=${false} placeholder=${prev?.reps ?? '—'} value=${st.reps} onValue=${(v) => patchSet(j, 'reps', v)} aria-label="Repetições" /></td>
+                ${mode === 'rpe' && html`<td><${NumField} class=${`input ${a.rpe ? 'auto' : ''}`} placeholder=${ex.targetRpe ?? '—'} value=${st.rpe} onValue=${(v) => patchSet(j, 'rpe', v)} aria-label="RPE" /></td>`}
+                ${mode === 'pct' && html`<td><${NumField} class=${`input ${a.pct ? 'auto' : ''}`} decimals=${false} placeholder=${pctShown ?? ex.targetPct ?? '—'} value=${st.pct} onValue=${(v) => patchSet(j, 'pct', v)} aria-label="% de 1RM" /></td>`}
                 <td><button class=${`set-check ${st.done ? 'on' : ''}`} onClick=${() => toggleDone(j)} aria-label="Série feita"><${Icon} name="check" /></button></td>
               </tr>
             `;

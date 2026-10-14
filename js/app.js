@@ -159,6 +159,21 @@ function App() {
 
 render(html`<${App} />`, document.getElementById('app'));
 
+// iPhone: "Agitar para Desfazer". Ao sair de um campo, regravar o valor zera o
+// histórico de digitação dele (sem nada para desfazer, o aviso não tem o que fazer);
+// e se o desfazer for acionado mesmo assim, ele é cancelado.
+document.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !['file', 'checkbox', 'radio'].includes(el.type)) {
+    const v = el.value;
+    el.value = '';
+    el.value = v;
+  }
+}, true);
+document.addEventListener('beforeinput', (e) => {
+  if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') e.preventDefault();
+}, true);
+
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   // Quando uma versão nova do app assume, recarrega uma vez para usá-la já.
   const hadController = !!navigator.serviceWorker.controller;

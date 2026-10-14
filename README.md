@@ -27,7 +27,9 @@ Acompanhe e **gamifique** sua jornada fitness: treino, dieta, avaliação físic
 **Dieta**
 - Diário por refeição com a **Tabela TACO completa** (4ª ed., 591 alimentos) + alimentos personalizados; busca sem acento, recentes, copiar dia anterior.
 - **Cálculo de macros**: TMB (Mifflin-St Jeor ou Katch-McArdle quando há % de gordura), fator de atividade, ajuste por objetivo; recalcula sozinho quando você registra peso/BF. Metas manuais opcionais.
-- **Plano alimentar automático** a partir de um questionário (nº de refeições, restrições, preferências, aversões), com porções resolvidas para bater os macros e substituições equivalentes.
+- **Plano alimentar automático** com base de ~50 cardápios brasileiros (arroz e feijão, tapioca, cuscuz, omelete, escondidinho…): escolhe pelos gostos e restrições (vegetariano, vegano, sem lactose, glúten, peixe, porco, soja, oleaginosas), ajusta só as quantidades para bater os macros, oferece 3 opções por refeição e mostra medidas caseiras (“2 ovos”, “1 pão francês”).
+- **Leitor de código de barras / QR** (câmera): busca o produto na Open Food Facts e salva com o código; cadastro manual aceita valores por porção do rótulo.
+- **Refeições salvas**: combinações que você repete, adicionadas com um toque.
 
 **Corpo**
 - Avaliação simplificada: peso, cintura, pescoço (e quadril para mulheres) → **% de gordura** (Marinha dos EUA; RFM como alternativa), massa magra/gorda, IMC.

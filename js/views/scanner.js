@@ -95,7 +95,7 @@ function Scanner({ close, onFound, onNew }) {
     const stop = () => {
       alive = false;
       cancelAnimationFrame(raf);
-      try { reader?.reset(); } catch { /* ignore */ }
+      clearTimeout(raf);
       stream?.getTracks().forEach((t) => t.stop());
     };
     stopRef.current = stop;
@@ -131,10 +131,38 @@ function Scanner({ close, onFound, onNew }) {
           const hints = new Map();
           hints.set(ZX.DecodeHintType.POSSIBLE_FORMATS, [ZX.BarcodeFormat.EAN_13, ZX.BarcodeFormat.EAN_8, ZX.BarcodeFormat.UPC_A, ZX.BarcodeFormat.UPC_E, ZX.BarcodeFormat.QR_CODE, ZX.BarcodeFormat.CODE_128]);
           hints.set(ZX.DecodeHintType.TRY_HARDER, true);
-          reader = new ZX.BrowserMultiFormatReader(hints, 300);
-          reader.decodeFromVideoElementContinuously(video.current, (result) => {
-            if (result && alive) handle(result.getText());
-          });
+          // Lê quadros do vídeo num canvas e decodifica direto (o leitor de vídeo
+          // do ZXing não dispara no iPhone quando o vídeo já está tocando).
+          reader = new ZX.MultiFormatReader();
+          reader.setHints(hints);
+          const canvas = document.createElement('canvas');
+          const c2 = canvas.getContext('2d', { willReadFrequently: true });
+          // faixa central (onde fica a moldura) primeiro; depois o quadro inteiro
+          const regions = [[0.08, 0.28, 0.84, 0.44], [0, 0, 1, 1]];
+          let n = 0;
+          const scanFrame = () => {
+            if (!alive) return;
+            const v = video.current;
+            const w = v?.videoWidth, h = v?.videoHeight;
+            if (w && h) {
+              const [rx, ry, rw, rh] = regions[n++ % regions.length];
+              const sw = Math.round(w * rw), sh = Math.round(h * rh);
+              const scale = Math.min(1, 1000 / sw);
+              canvas.width = Math.round(sw * scale);
+              canvas.height = Math.round(sh * scale);
+              try {
+                c2.drawImage(v, Math.round(w * rx), Math.round(h * ry), sw, sh, 0, 0, canvas.width, canvas.height);
+                const bmp = new ZX.BinaryBitmap(new ZX.HybridBinarizer(new ZX.HTMLCanvasElementLuminanceSource(canvas)));
+                const res = reader.decode(bmp);
+                if (res?.getText()) return handle(res.getText());
+              } catch { /* nada neste quadro */ }
+              reader.reset?.();
+            } else if (v?.paused) {
+              v.play().catch(() => {});
+            }
+            raf = setTimeout(scanFrame, 120);
+          };
+          scanFrame();
         }
       } catch (e) {
         setStatus(e?.name === 'NotAllowedError' ? 'Permita o acesso à câmera (Ajustes do iPhone → Safari → Câmera) ou digite o código.' : 'Não foi possível abrir a câmera. Digite o código abaixo.');

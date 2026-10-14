@@ -1,5 +1,5 @@
 // Service worker: rede primeiro (versão sempre atual) com cache para uso offline.
-const VERSION = 'fitquest-v2.7.0';
+const VERSION = 'fitquest-v2.7.1';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css', './icons/icon.svg',
   './vendor/preact.js', './vendor/preact-hooks.js', './vendor/htm.js', './vendor/supabase.js', './js/config.js', './js/cloud.js', './js/views/auth.js',

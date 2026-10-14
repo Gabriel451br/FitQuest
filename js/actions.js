@@ -4,6 +4,7 @@ import { update, getState, finishedSessions } from './store.js';
 import { openModal, Sheet, Field, NumInput, toast, confirmDialog } from './ui.js';
 import { dateKey, uid } from './util.js';
 import { ACTIVITIES, sessionType } from './cardio.js';
+import { GPS_TYPES } from './gps.js';
 
 export function addWater(date, ml) {
   update((s) => {
@@ -97,7 +98,12 @@ export function startSession(workout, date = dateKey()) {
         id, date, type, workoutId: workout?.id ?? null,
         name: workout?.name ?? ACTIVITIES[type].label,
         startedAt: Date.now(), finishedAt: null, pausedMs: 0, pausedAt: null, exercises: [],
-        cardio: { kind: workout?.kind ?? null, distance: null, duration: null, target: workout?.target ?? null, notes: workout?.notes ?? '' },
+        cardio: {
+          kind: workout?.kind ?? null, distance: null, duration: null, target: workout?.target ?? null, notes: workout?.notes ?? '',
+          // GPS ligado por padrão ao ar livre (corrida, caminhada, bike); esteira/indoor não
+          gps: GPS_TYPES.includes(type) && !['Esteira', 'Indoor'].includes(workout?.kind),
+          ...(workout?.plan?.steps?.length ? { plan: structuredClone(workout.plan), cursor: { idx: 0, t: 0, d: 0 }, laps: [] } : {}),
+        },
       });
       st.activeSessionId = id;
     });

@@ -94,6 +94,12 @@ export function SettingsView({ s }) {
       </section>
 
       <section class="card stack-sm">
+        <h3 class="up">Corrida, bike e caminhada</h3>
+        <${Check} checked=${s.settings.voice !== false} onChange=${setS('voice')}>Avisos por voz (cada km e troca de etapa)<//>
+        <p class="tiny muted">O GPS liga sozinho ao iniciar uma atividade ao ar livre (desligue no próprio treino para esteira).</p>
+      </section>
+
+      <section class="card stack-sm">
         <h3 class="up">Backup</h3>
         <div class="row-sb small">
           <span>Armazenamento ${persisted ? html`<span class="tag acc">Persistente</span>` : html`<span class="tag">Padrão</span>`}</span>

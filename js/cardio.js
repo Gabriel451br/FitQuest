@@ -6,9 +6,9 @@ import { weekStart } from './util.js';
 // kcalKm: kcal por kg por km (atividades de deslocamento); met: equivalente metabólico por tempo.
 export const ACTIVITIES = {
   strength: { label: 'Musculação', short: 'Muscul.', icon: 'train' },
-  run: { label: 'Corrida', short: 'Corrida', icon: 'run', fields: ['distance', 'duration', 'hr', 'elevation', 'cadence'], rate: 'pace', kcalKm: 1.0, met: 9.8, kinds: ['Rodagem', 'Intervalado', 'Longão', 'Ritmo', 'Regenerativo', 'Prova'], minPrKm: 1 },
-  walk: { label: 'Caminhada', short: 'Caminh.', icon: 'walk', fields: ['distance', 'duration', 'hr', 'elevation'], rate: 'pace', kcalKm: 0.55, met: 3.8, kinds: ['Leve', 'Rápida', 'Trilha', 'Esteira'], minPrKm: 1 },
-  bike: { label: 'Ciclismo', short: 'Bike', icon: 'bike', fields: ['distance', 'duration', 'hr', 'elevation', 'cadence'], rate: 'speed', met: 8, kinds: ['Estrada', 'MTB', 'Indoor', 'Intervalado'], minPrKm: 5 },
+  run: { label: 'Corrida', short: 'Corrida', icon: 'run', fields: ['distance', 'duration', 'hr', 'elevation', 'cadence'], rate: 'pace', kcalKm: 1.0, met: 9.8, kinds: ['Rodagem', 'Intervalado', 'Fartlek', 'Longão', 'Ritmo', 'Progressivo', 'Regenerativo', 'Prova', 'Esteira'], minPrKm: 1 },
+  walk: { label: 'Caminhada', short: 'Caminh.', icon: 'walk', fields: ['distance', 'duration', 'hr', 'elevation'], rate: 'pace', kcalKm: 0.55, met: 3.8, kinds: ['Leve', 'Rápida', 'Trilha', 'Esteira', 'Intervalado', 'Longão', 'Regenerativo'], minPrKm: 1 },
+  bike: { label: 'Ciclismo', short: 'Bike', icon: 'bike', fields: ['distance', 'duration', 'hr', 'elevation', 'cadence'], rate: 'speed', met: 8, kinds: ['Estrada', 'MTB', 'Indoor', 'Intervalado', 'Longão', 'Ritmo', 'Progressivo', 'Regenerativo'], minPrKm: 5 },
   swim: { label: 'Natação', short: 'Natação', icon: 'swim', fields: ['distance', 'duration', 'hr'], rate: 'pace100', met: 7, kinds: ['Livre', 'Técnica', 'Intervalado', 'Águas abertas'], meters: true, minPrKm: 0.4 },
   hiit: { label: 'HIIT / Funcional', short: 'HIIT', icon: 'bolt', fields: ['duration', 'rounds', 'hr'], met: 8, kinds: ['HIIT', 'Funcional', 'Crossfit', 'Circuito', 'Tabata'] },
   sport: { label: 'Esportes', short: 'Esporte', icon: 'ball', fields: ['duration', 'hr'], met: 7, kinds: ['Futebol', 'Basquete', 'Vôlei', 'Tênis', 'Lutas', 'Beach tennis'] },

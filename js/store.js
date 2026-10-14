@@ -124,6 +124,12 @@ export function switchAccount(userId) {
   return { adoptedLegacy };
 }
 
+// Assinatura fora de componentes (ex.: GPS acompanha a sessão ativa).
+export function subscribe(fn) {
+  subs.add(fn);
+  return () => subs.delete(fn);
+}
+
 export function useStore() {
   const [s, set] = useState(state);
   useEffect(() => {

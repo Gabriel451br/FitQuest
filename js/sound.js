@@ -99,3 +99,59 @@ document.addEventListener('visibilitychange', () => {
 
 // WAV silencioso de 0,05 s (só para destravar o áudio no iOS)
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+// --- Avisos por voz (parciais de km, troca de etapa) -------------------------------------
+// No iPhone a fala precisa ser "destravada" por um toque: primeVoice() no botão de iniciar.
+
+export function primeVoice() {
+  try {
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  } catch { /* sem voz */ }
+}
+
+export function speak(text) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    setSession('transient');
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'pt-BR';
+    const v = speechSynthesis.getVoices().find((x) => x.lang?.replace('_', '-').startsWith('pt-BR'));
+    if (v) u.voice = v;
+    u.rate = 1.05;
+    u.onend = () => setSession('auto');
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  } catch { /* sem voz */ }
+}
+
+// "5:32" → "5 minutos e 32" (para falar o pace)
+export function sayDuration(sec) {
+  sec = Math.round(sec);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (!m) return `${s} segundos`;
+  return s ? `${m} ${m === 1 ? 'minuto' : 'minutos'} e ${s}` : `${m} ${m === 1 ? 'minuto' : 'minutos'}`;
+}
+
+// Bipe curto (contagem regressiva das etapas). long = bipe final, mais grave e longo.
+export function beep(long = false) {
+  const c = audioCtx();
+  if (!c) return;
+  try {
+    if (c.state !== 'running') c.resume();
+    const t0 = c.currentTime + 0.02;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = 'square';
+    o.frequency.value = long ? 1320 : 880;
+    const len = long ? 0.45 : 0.12;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.8, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+    o.connect(g).connect(c.destination);
+    o.start(t0);
+    o.stop(t0 + len + 0.02);
+  } catch { /* sem áudio */ }
+}

@@ -563,3 +563,40 @@ button:disabled { opacity: .35; pointer-events: none; }
 .scan-box { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 52vh; background: #000; border: var(--bw) solid var(--line); overflow: hidden; }
 .scan-box video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .scan-frame { position: absolute; left: 12%; right: 12%; top: 35%; height: 30%; border: 3px solid var(--accent); box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35); }
+
+/* ---------- Atividade ao vivo (GPS / etapas) ---------- */
+.live-v { font-weight: 800; font-size: 24px; letter-spacing: -0.03em; line-height: 1.1; }
+.gps-chip { display: inline-flex; align-items: center; gap: 6px; flex: none; font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 6px 8px; border: var(--bw) solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.gps-chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-2); }
+.gps-chip.on { background: #0b0b0b; color: var(--accent); border-color: #0b0b0b; }
+.gps-chip.on i { background: var(--accent); animation: blink 1.6s infinite; }
+.gps-chip.warn i { background: #ff9f1a; animation: blink 0.8s infinite; }
+.gps-chip.bad i { background: var(--danger); }
+@keyframes blink { 50% { opacity: 0.25; } }
+.step-card { border-left-width: 10px; background: #0b0b0b; color: #f1efe8; --ink: #f1efe8; --ink-2: #a3a199; --surface: #161616; --bg: #0d0d0d; border-color: #0b0b0b; }
+.step-card.k-work { border-left-color: var(--accent); }
+.step-card.k-rest { border-left-color: #4da3ff; }
+.step-card.k-warm, .step-card.k-cool { border-left-color: #ff9f1a; }
+.step-card.k-steady { border-left-color: var(--accent); }
+.step-card .xp-bar { background: #222220; border-color: #3a3a36; height: 14px; }
+.step-card .xp-bar > i { background: var(--accent); }
+.pace-st { font-family: var(--mono); font-size: 12px; font-weight: 800; padding: 3px 8px; background: #222220; color: #f1efe8; }
+.pace-st.ok { background: var(--accent); color: #0b0b0b; }
+.pace-st.slow { background: #ff9f1a; color: #0b0b0b; }
+.pace-st.fast { background: #4da3ff; color: #0b0b0b; }
+.steps-list { list-style: none; margin: 0; padding: 0; border: var(--bw) solid var(--line); }
+.steps-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px 7px 12px; font-size: 13px; border-left: 6px solid var(--ink-2); }
+.steps-list li + li { border-top: 1.5px solid color-mix(in srgb, var(--line) 20%, transparent); }
+.steps-list li.k-work, .steps-list li.k-steady { border-left-color: var(--accent); font-weight: 700; }
+.steps-list li.k-rest { border-left-color: #4da3ff; }
+.steps-list li.k-warm, .steps-list li.k-cool { border-left-color: #ff9f1a; }
+.steps-list li.cur { background: #0b0b0b; color: #f1efe8; }
+.steps-list li.done { color: var(--ink-2); }
+.route { display: block; width: 100%; height: auto; background: #0b0b0b; }
+.route-line { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+.route-start { fill: #f1efe8; stroke: #0b0b0b; stroke-width: 2; }
+.route-end { fill: var(--accent); stroke: #0b0b0b; stroke-width: 2; }
+.splits { display: flex; flex-direction: column; gap: 4px; }
+.split { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
+.split i { display: block; height: 14px; background: var(--ink-2); }
+.split.best i { background: var(--accent); outline: 1.5px solid var(--line); }

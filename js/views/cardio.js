@@ -11,6 +11,7 @@ import { GPS_TYPES, currentSpeed, splitTimes, simplify, projectRoute } from '../
 import { useGps, takeTrack, gpsSupported, elapsedOf } from '../gpslive.js';
 import { liveDistance, announceStep } from '../livecoach.js';
 import { prime, primeVoice, keepAwake } from '../sound.js';
+import { LockPrompt } from './lockprompt.js';
 import { LineChart, BarChart } from '../charts.js';
 import { startSession, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
 import { go } from '../nav.js';
@@ -559,6 +560,8 @@ export function CardioLive({ s, ses }) {
           : t && html`<div class="mono small">Meta: ${targetText(type, t)}</div>`}
         ${pct != null && html`<div class="xp-bar" style="margin-top:12px"><i style=${`width:${pct * 100}%`}></i></div>`}
       </div>
+
+      <${LockPrompt} s=${s} />
 
       ${steps.length > 0 && html`
         <div class=${`card step-card k-${step?.kind ?? 'done'}`}>

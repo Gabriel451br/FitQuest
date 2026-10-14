@@ -3,6 +3,7 @@ import { html, useState, useEffect } from '../lib.js';
 import { update, replaceState, getState, emptyState, requestPersistence } from '../store.js';
 import { allPhotos, putPhoto } from '../photos.js';
 import { Field, NumInput, Seg, Check, toast, confirmDialog } from '../ui.js';
+import { lockPermission, enableLockScreen } from '../lockscreen.js';
 import { go } from '../nav.js';
 import { dateKey } from '../util.js';
 import { cloudEnabled, useAuth, useSync, signOut, syncNow } from '../cloud.js';
@@ -93,6 +94,8 @@ export function SettingsView({ s }) {
         <//>
       </section>
 
+      <${LockScreenCard} s=${s} setS=${setS} />
+
       <section class="card stack-sm">
         <h3 class="up">Corrida, bike e caminhada</h3>
         <${Check} checked=${s.settings.voice !== false} onChange=${setS('voice')}>Avisos por voz (cada km e troca de etapa)<//>
@@ -158,4 +161,35 @@ function AccountCard() {
       <p class="tiny muted">Tudo é salvo no aparelho na hora e enviado à nuvem em seguida. Sem internet, o envio acontece quando a conexão voltar.</p>
     </section>
   `;
+}
+
+function LockScreenCard({ s, setS }) {
+  const perm = lockPermission();
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  return html`
+    <section class="card stack-sm">
+      <h3 class="up">Tela de bloqueio</h3>
+      <p class="small">Ao bloquear o celular no meio do treino, aparece um painel com o exercício/etapa atual, séries feitas, distância e o horário em que o descanso termina. Some quando você volta ao app.</p>
+      ${perm === 'unsupported'
+        ? html`<p class="tiny muted">${standalone ? 'Este aparelho não suporta notificações de app web.' : 'No iPhone: instale o app (Compartilhar → Adicionar à Tela de Início) e abra por lá para liberar esta função.'}</p>`
+        : perm === 'granted'
+          ? html`
+            <${Check} checked=${s.settings.lockScreen !== false} onChange=${setS('lockScreen')}>Mostrar painel do treino na tela de bloqueio<//>
+            <button class="btn sm" onClick=${async () => { const ok = await showTestCard(); toast(ok ? 'Bloqueie a tela para ver o exemplo' : 'Não foi possível mostrar'); }}>Testar agora</button>`
+          : perm === 'denied'
+            ? html`<p class="tiny muted">Notificações bloqueadas. Libere em Ajustes do iPhone → Notificações → FitQuest.</p>`
+            : html`<button class="btn primary" onClick=${async () => toast((await enableLockScreen()) ? 'Pronto! Aparece ao bloquear durante o treino' : 'Permissão não concedida')}>Ativar painel na tela de bloqueio</button>`}
+    </section>
+  `;
+}
+
+async function showTestCard() {
+  try {
+    const r = await navigator.serviceWorker.ready;
+    await r.showNotification('🏋️ Exemplo · Treino A · 32 min', {
+      body: '⏱ Descanso até 10:32:15\n▶ Supino reto — série 3/4 · 80 kg × 8\nDepois: Remada curvada\n✓ 9/16 séries · 5.420 kg · início 09:58',
+      tag: 'fitquest-teste', icon: './icons/icon-192.png',
+    });
+    return true;
+  } catch { return false; }
 }

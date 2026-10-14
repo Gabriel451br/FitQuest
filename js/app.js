@@ -159,17 +159,30 @@ function App() {
 
 render(html`<${App} />`, document.getElementById('app'));
 
-// iPhone: "Agitar para Desfazer". Ao sair de um campo, regravar o valor zera o
-// histórico de digitação dele (sem nada para desfazer, o aviso não tem o que fazer);
-// e se o desfazer for acionado mesmo assim, ele é cancelado.
-document.addEventListener('focusout', (e) => {
+// iPhone: "Agitar para Desfazer". O iOS só oferece desfazer quando o campo tem histórico
+// de digitação; regravar o valor por código apaga esse histórico. Fazemos isso logo após
+// cada pausa na digitação e ao sair do campo — assim nunca há o que desfazer e o aviso
+// não aparece. Se o desfazer for acionado mesmo assim, ele é cancelado.
+const TEXT_TYPES = ['text', 'search', 'email', 'password', 'tel', 'url', 'number', ''];
+const isTextField = (el) => el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && TEXT_TYPES.includes(el.type)));
+function clearUndo(el) {
+  if (!isTextField(el)) return;
+  const v = el.value;
+  let a = null, b = null;
+  try { a = el.selectionStart; b = el.selectionEnd; } catch { /* type sem seleção */ }
+  el.value = '';
+  el.value = v;
+  try { if (a != null && document.activeElement === el) el.setSelectionRange(a, b); } catch { /* ignore */ }
+}
+let undoTimer = 0;
+document.addEventListener('input', (e) => {
+  if (e.isComposing || !isTextField(e.target)) return;
+  clearTimeout(undoTimer);
   const el = e.target;
-  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !['file', 'checkbox', 'radio'].includes(el.type)) {
-    const v = el.value;
-    el.value = '';
-    el.value = v;
-  }
+  undoTimer = setTimeout(() => clearUndo(el), 350);
 }, true);
+document.addEventListener('compositionend', (e) => clearUndo(e.target), true);
+document.addEventListener('focusout', (e) => clearUndo(e.target), true);
 document.addEventListener('beforeinput', (e) => {
   if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') e.preventDefault();
 }, true);

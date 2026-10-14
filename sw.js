@@ -1,11 +1,11 @@
 // Service worker: rede primeiro (versão sempre atual) com cache para uso offline.
-const VERSION = 'fitquest-v2.8.0';
+const VERSION = 'fitquest-v2.9.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css', './icons/icon.svg',
   './vendor/preact.js', './vendor/preact-hooks.js', './vendor/htm.js', './vendor/supabase.js', './js/config.js', './js/cloud.js', './js/views/auth.js',
   './js/app.js', './js/lib.js', './js/nav.js', './js/store.js', './js/selectors.js', './js/calc.js',
   './js/util.js', './js/foods.js', './js/game.js', './js/training.js', './js/dietgen.js',
-  './js/photos.js', './js/cardio.js', './js/views/cardio.js', './js/ui.js', './js/charts.js', './js/actions.js', './js/sound.js', './js/views/scanner.js', './js/barcode.js', './js/gps.js', './js/gpslive.js', './js/plans.js', './js/livecoach.js', './js/data/menus.js', './js/social.js', './js/views/social.js',
+  './js/photos.js', './js/cardio.js', './js/views/cardio.js', './js/ui.js', './js/charts.js', './js/actions.js', './js/sound.js', './js/views/scanner.js', './js/barcode.js', './js/gps.js', './js/gpslive.js', './js/plans.js', './js/livecoach.js', './js/lockscreen.js', './js/data/units.js', './js/data/menus.js', './js/social.js', './js/views/social.js',
   './js/data/taco.js', './js/data/exercises.js',
   './js/views/onboarding.js', './js/views/today.js', './js/views/training.js', './js/views/diet.js',
   './js/views/body.js', './js/views/journey.js', './js/views/settings.js',
@@ -55,4 +55,20 @@ self.addEventListener('fetch', (e) => {
       }),
     );
   }
+});
+
+// Toque no painel do treino (notificação da tela de bloqueio): abre/foca o app no treino.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) {
+      if ('focus' in c) {
+        try { await c.navigate?.(url); } catch { /* mesma página */ }
+        return c.focus();
+      }
+    }
+    return self.clients.openWindow(url);
+  })());
 });

@@ -9,6 +9,8 @@ import { LineChart } from '../charts.js';
 import { startSession, nextWorkout, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
 import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
 import { CardioHome, CardioLive } from './cardio.js';
+import { LockPrompt } from './lockprompt.js';
+import '../lockscreen.js';
 import { go } from '../nav.js';
 import { alarm, prime, keepAwake } from '../sound.js';
 import { uid, normalize, num, fmtDate, weekdayShort, addDays, weekStart, toNum } from '../util.js';
@@ -410,6 +412,8 @@ function SessionView({ s, ses }) {
           ${editing && html`<div class="row small mono muted"><span>${fmtDate(ses.date, { year: true })} · ${st.sets} séries · ${num(st.volume)} kg</span></div>`}
         </div>
       </div>
+
+      ${!editing && html`<${LockPrompt} s=${s} />`}
 
       ${editing && html`
         <${Field} label="Data">

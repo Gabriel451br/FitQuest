@@ -1,12 +1,16 @@
 // Alarme do descanso e “tela sempre ligada” durante o treino.
 //
 // iPhone: o áudio só pode tocar se foi liberado por um toque do usuário; por isso
-// prime() é chamado no toque que marca a série (✓). O AudioContext fica vivo e
-// o alarme toca depois sem bloqueio. navigator.audioSession = 'transient' pede ao
-// sistema para ABAIXAR a música de outros apps enquanto o alarme toca (iOS 16.4+).
+// prime() é chamado no toque que marca a série (✓) e no "Iniciar". O AudioContext fica
+// vivo e o alarme toca depois sem bloqueio.
+//
+// Música de outros apps (Spotify, Apple Music…): o app declara a sessão de áudio como
+// 'ambient' — sons que se MISTURAM com a música, sem pausá-la. Nada de <audio>/mídia
+// (isso faria o iOS pausar a música). Só durante o alarme/voz a sessão vira 'transient',
+// que pede ao sistema para abaixar a música por alguns segundos (iOS 16.4+).
 
 let ctx = null;
-let unlockedEl = null;
+const BASE_SESSION = 'ambient';
 
 function audioCtx() {
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -28,18 +32,15 @@ export function prime() {
       src.connect(c.destination);
       src.start(0);
     }
-    if (!unlockedEl) {
-      unlockedEl = new Audio(SILENT_WAV);
-      unlockedEl.play().catch(() => {});
-    }
   } catch { /* sem áudio */ }
 }
 
 function setSession(type) {
   try {
-    if (navigator.audioSession) navigator.audioSession.type = type;
+    if (navigator.audioSession) navigator.audioSession.type = type === 'auto' ? BASE_SESSION : type;
   } catch { /* não suportado */ }
 }
+setSession(BASE_SESSION);
 
 // Três sequências de bipes fortes (~2,5 s). Música de fundo é abaixada durante o alarme.
 export async function alarm() {
@@ -97,8 +98,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && wanted) keepAwake(true);
 });
 
-// WAV silencioso de 0,05 s (só para destravar o áudio no iOS)
-const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 
 // --- Avisos por voz (parciais de km, troca de etapa) -------------------------------------
 // No iPhone a fala precisa ser "destravada" por um toque: primeVoice() no botão de iniciar.

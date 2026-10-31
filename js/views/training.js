@@ -6,7 +6,7 @@ import { exerciseHistory, lastPerformance, bestE1rm, computePRs, sessionStats, w
 import { pctOf1rm, loadForPct, oneRmEstimates, repsAtPct } from '../calc.js';
 import { Icon, openModal, Sheet, Field, Seg, Check, NumInput, NumField, toast, confirmDialog, Empty, Stat, useNow } from '../ui.js';
 import { LineChart } from '../charts.js';
-import { startSession, nextWorkout, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
+import { startSession, nextWorkout, deleteSession, deleteWorkout, moveWorkout, openSaveAsWorkout } from '../actions.js';
 import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
 import { CardioHome, CardioLive } from './cardio.js';
 import { LockPrompt } from './lockprompt.js';
@@ -407,6 +407,7 @@ function SessionView({ s, ses }) {
           <div class="row-sb">
             <button class="link-btn small" onClick=${() => go('treino')}>← Treino</button>
             ${!editing && ses.workoutId && s.workouts.some((w) => w.id === ses.workoutId) && html`<button class="link-btn small" onClick=${() => editWorkout(s, s.workouts.find((w) => w.id === ses.workoutId))}>✎ Editar rotina</button>`}
+            ${!(ses.workoutId && s.workouts.some((w) => w.id === ses.workoutId)) && ses.exercises.length > 0 && html`<button class="link-btn small" onClick=${() => openSaveAsWorkout(ses)}>★ Salvar como treino</button>`}
           </div>
           <input class="input title-input" value=${ses.name} onInput=${(e) => patchSession(ses.id, (x) => (x.name = e.target.value))} aria-label="Nome do treino" />
           ${editing && html`<div class="row small mono muted"><span>${fmtDate(ses.date, { year: true })} · ${st.sets} séries · ${num(st.volume)} kg</span></div>`}
@@ -698,7 +699,10 @@ function IntensityConfig({ exId }) {
 function SessionSummary({ s, ses, prs, close }) {
   const st = sessionStats(s, ses);
   return html`
-    <${Sheet} title="Treino concluído" onClose=${close} footer=${html`<button class="btn primary block" onClick=${close}>Fechar</button>`}>
+    <${Sheet} title="Treino concluído" onClose=${close} footer=${html`
+      ${!(ses.workoutId && s.workouts.some((w) => w.id === ses.workoutId)) && html`<button class="btn" onClick=${() => openSaveAsWorkout(ses)}><${Icon} name="star" />Salvar treino</button>`}
+      <button class="btn primary grow" onClick=${close}>Fechar</button>
+    `}>
       <div class="card accent center">
         <div class="eyebrow">Recompensa</div>
         <div class="big-num" style="margin:6px 0">+${100 + prs.length * 25} XP</div>
@@ -728,6 +732,7 @@ function HistoryTab({ s }) {
   const prs = computePRs(s);
   if (!list.length) return html`<${Empty} title="Nenhum treino ainda" text="Seus treinos concluídos aparecem aqui, com volume e recordes." />`;
   return html`
+    <p class="tiny muted" style="margin-bottom:8px">Toque em ★ para salvar um treino do histórico na sua lista e repetir depois.</p>
     <div class="list">
       ${list.map((ses) => {
         const st = sessionStats(s, ses);
@@ -741,6 +746,7 @@ function HistoryTab({ s }) {
               <div class="s">${fmtDate(ses.date, { year: true })} · ${st.sets} séries · ${num(st.volume)} kg${st.minutes ? ` · ${st.minutes} min` : ''}</div>
             </div>
             </button>
+            <button class="icon-btn" aria-label="Salvar como treino" title="Salvar como treino" onClick=${() => openSaveAsWorkout(ses)}><${Icon} name="star" /></button>
             <button class="icon-btn" aria-label="Excluir treino" onClick=${() => deleteSession(ses.id)}><${Icon} name="trash" /></button>
           </div>
         `;

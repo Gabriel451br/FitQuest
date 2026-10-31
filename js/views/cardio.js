@@ -13,7 +13,7 @@ import { liveDistance, announceStep } from '../livecoach.js';
 import { prime, primeVoice, keepAwake } from '../sound.js';
 import { LockPrompt } from './lockprompt.js';
 import { LineChart, BarChart } from '../charts.js';
-import { startSession, deleteSession, deleteWorkout, moveWorkout } from '../actions.js';
+import { startSession, deleteSession, deleteWorkout, moveWorkout, openSaveAsWorkout } from '../actions.js';
 import { go } from '../nav.js';
 import { dateKey, uid, num, weekdayShort, addDays, weekStart, parseKey } from '../util.js';
 
@@ -689,6 +689,7 @@ function CardioHistory({ s, type }) {
                 <div class="s mono">${[c.distance ? showDist(type, c.distance) : null, fmtDuration(c.duration), rate, c.hr ? `${c.hr} bpm` : null].filter(Boolean).join(' · ')}</div>
               </div>
             </button>
+            <button class="icon-btn" aria-label="Salvar como treino" title="Salvar como treino" onClick=${() => openSaveAsWorkout(x)}><${Icon} name="star" /></button>
             <button class="icon-btn" aria-label="Excluir atividade" onClick=${() => deleteSession(x.id)}><${Icon} name="trash" /></button>
           </div>
         `;

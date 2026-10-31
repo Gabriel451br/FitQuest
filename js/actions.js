@@ -1,10 +1,11 @@
 // Ações de domínio reutilizadas entre telas.
 import { html, useState } from './lib.js';
-import { update, getState, finishedSessions } from './store.js';
+import { update, getState, finishedSessions, exerciseById } from './store.js';
 import { openModal, Sheet, Field, NumInput, toast, confirmDialog } from './ui.js';
 import { dateKey, uid } from './util.js';
 import { ACTIVITIES, sessionType } from './cardio.js';
 import { GPS_TYPES } from './gps.js';
+import { routineFromSession } from './training.js';
 
 export function addWater(date, ml) {
   update((s) => {
@@ -132,4 +133,59 @@ export function startSession(workout, date = dateKey()) {
     st.activeSessionId = id;
   });
   location.hash = '#/treino/sessao';
+}
+
+// --- Salvar sessão (treino livre / histórico) como treino para repetir ----------------------
+
+export function workoutFromSession(ses) {
+  const type = sessionType(ses);
+  if (type === 'strength') return { type, exercises: routineFromSession(ses) };
+  const c = ses.cardio ?? {};
+  return {
+    type,
+    kind: c.kind ?? null,
+    target: c.plan?.steps?.length ? null : { distance: c.distance ?? c.target?.distance ?? null, duration: c.duration ?? c.target?.duration ?? null },
+    notes: c.notes ?? '',
+    ...(c.plan?.steps?.length ? { plan: structuredClone(c.plan) } : {}),
+  };
+}
+
+export function openSaveAsWorkout(ses) {
+  openModal((close) => html`<${SaveAsWorkout} ses=${ses} close=${close} />`);
+}
+
+function SaveAsWorkout({ ses, close }) {
+  const s = getState();
+  const generic = !ses.name || /^treino livre$/i.test(ses.name) || ses.name === ACTIVITIES[sessionType(ses)]?.label;
+  const [name, setName] = useState(generic ? '' : ses.name);
+  const data = workoutFromSession(ses);
+  const n = data.exercises?.length;
+  const save = () => {
+    const base = name.trim();
+    if (!base) return toast('Dê um nome ao treino');
+    if (data.type === 'strength' && !n) return toast('Este treino não tem exercícios');
+    let nm = base;
+    for (let i = 2; s.workouts.some((w) => w.name === nm); i++) nm = `${base} (${i})`;
+    const id = uid();
+    update((st) => {
+      st.workouts.push({ id, name: nm, ...structuredClone(data) });
+      // treino em andamento passa a ser dessa rotina (permite "Editar rotina")
+      const x = st.sessions.find((y) => y.id === ses.id);
+      if (x && !x.finishedAt && !x.workoutId) x.workoutId = id;
+      st.settings.trainCat = data.type;
+    });
+    toast(`“${nm}” salvo em Treinos`);
+    close();
+  };
+  return html`
+    <${Sheet} title="Salvar como treino" onClose=${close} footer=${html`<button class="btn primary block" onClick=${save}>Salvar treino</button>`}>
+      <p class="small">Fica na sua lista de treinos para fazer de novo quando quiser${data.type === 'strength' ? ' — com os mesmos exercícios, número de séries e faixa de repetições.' : '.'}</p>
+      <${Field} label="Nome do treino"><input class="input" value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Ex.: Peito e tríceps, Treino A" onKeyDown=${(e) => e.key === 'Enter' && save()} /><//>
+      ${data.type === 'strength' && html`
+        <div class="list">
+          ${data.exercises.map((e) => html`<div class="li"><span class="t grow">${exerciseById(s, e.exId).name}</span><span class="mono small">${e.sets} × ${e.reps}</span></div>`)}
+        </div>`}
+      <p class="tiny muted">Dá para ajustar depois em Treino → ✎ Editar.</p>
+    <//>
+  `;
 }

@@ -34,3 +34,24 @@ test('intensidade e 1RM por exercício', () => {
   assert.equal(intensityFor(s, 'supino-reto'), 'rpe');
   assert.equal(oneRmRef(s, 'agachamento'), 150);
 });
+
+import { routineFromSession } from '../js/training.js';
+
+test('sessão → rotina: séries válidas, faixa de reps, sem aquecimento', () => {
+  const ses = { exercises: [
+    { exId: 'supino', rest: 120, sets: [
+      { kg: 40, reps: 12, done: true, kind: 'warmup' },
+      { kg: 80, reps: 10, done: true, kind: 'work' },
+      { kg: 80, reps: 8, done: true, kind: 'work' },
+      { kg: 80, reps: 9, done: true, kind: 'drop' },
+      { kg: null, reps: null, done: false, kind: 'work' },
+    ] },
+    { exId: 'rosca', sets: [{ kg: 14, reps: 12, done: true }, { kg: 14, reps: 12, done: true }] },
+    { exId: 'novo', target: '6-8', sets: [{ done: false }, { done: false }] },
+  ] };
+  assert.deepEqual(routineFromSession(ses), [
+    { exId: 'supino', sets: 3, reps: '8-10', rest: 120 },
+    { exId: 'rosca', sets: 2, reps: '12', rest: 90 },
+    { exId: 'novo', sets: 2, reps: '6-8', rest: 90 },
+  ]);
+});

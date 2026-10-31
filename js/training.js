@@ -146,3 +146,28 @@ export function oneRmRef(s, exId) {
 
 // Levantamentos básicos sugeridos para %RM.
 export const MAIN_LIFTS = ['agachamento', 'supino-reto', 'levantamento-terra', 'desenvolvimento'];
+
+// Sessão (treino livre ou do histórico) → rotina salva para repetir depois.
+// Séries de aquecimento não contam no total; a faixa de repetições vem do que foi feito
+// (ex.: 10, 9, 8 → "8-10"). Em sessão em andamento, usa as séries preenchidas/planejadas.
+export function routineFromSession(ses) {
+  return (ses.exercises ?? [])
+    .map((e) => {
+      const all = e.sets ?? [];
+      const done = all.filter((x) => x.done);
+      const base = (done.length ? done : all).filter((x) => setKind(x) !== 'warmup');
+      const reps = base.map((x) => Number(x.reps)).filter((n) => n > 0);
+      const lo = reps.length ? Math.min(...reps) : null;
+      const hi = reps.length ? Math.max(...reps) : null;
+      const range = lo == null ? (e.target || '8-12') : lo === hi ? String(lo) : `${lo}-${hi}`;
+      return {
+        exId: e.exId,
+        sets: Math.max(1, base.length || all.length || 3),
+        reps: range,
+        rest: e.rest ?? 90,
+        ...(e.targetRpe != null ? { targetRpe: e.targetRpe } : {}),
+        ...(e.targetPct != null ? { targetPct: e.targetPct } : {}),
+      };
+    })
+    .filter((e) => e.exId);
+}

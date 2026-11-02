@@ -3,11 +3,8 @@ import { html, useState, useMemo } from '../lib.js';
 import { update, getState, targets, autoTargets, dayEntry, MEALS, latestWeight, currentBf } from '../store.js';
 import { searchFoods, getFood, macrosFor, sumMacros, categoryName } from '../foods.js';
 import { TACO, TACO_CATEGORIES } from '../data/taco.js';
-import { generatePlan, substitutes, POOLS, houseMeasure } from '../dietgen.js';
-import { MENU_TEMPLATES } from '../data/menus.js';
+import { generatePlan, substitutes, houseMeasure, DIET_STYLES } from '../dietgen.js';
 
-// Alimentos que aparecem nos cardápios (para a lista "não gosto")
-const MENU_FOODS = [...new Set(MENU_TEMPLATES.flatMap((t) => t.items.map((i) => i[0])))].filter((id) => ![471, 260].includes(id));
 const shortName = (id) => {
   const n = getFood(id)?.name ?? String(id);
   return n.replace(/\s*\((rótulo|referência) médi[oa]\)/, '').split(',').slice(0, 2).join(',');
@@ -419,9 +416,60 @@ function SavedMealEditor({ meal, initial, close }) {
 // --- Plano automático ------------------------------------------------------------------
 
 const DEFAULT_ANSWERS = {
-  meals: 5, vegetarian: false, vegan: false, lactoseFree: false, glutenFree: false,
-  noFish: false, noPork: false, noSoy: false, noSupplements: false, nutAllergy: false, lightDinner: false, includeLegumes: true, includeFruit: true,
+  goal: null, style: 'tradicional', meals: 5, trainTime: 'noite', cookTime: 'quick', recipes: true, budget: 'normal',
+  vegetarian: false, vegan: false, lactoseFree: false, glutenFree: false, noEggs: false,
+  noFish: false, noPork: false, noSoy: false, noSupplements: false, nutAllergy: false,
   preferredProteins: [], preferredCarbs: [], excluded: [],
+};
+
+const RESTRICTIONS = [
+  ['lactoseFree', 'Sem lactose'], ['glutenFree', 'Sem glúten'], ['vegetarian', 'Vegetariano'], ['vegan', 'Vegano'],
+  ['noEggs', 'Sem ovo'], ['noFish', 'Sem peixe'], ['noPork', 'Sem carne de porco'], ['nutAllergy', 'Alergia a castanhas/amendoim'],
+  ['noSoy', 'Sem soja'], ['noSupplements', 'Sem suplementos (whey)'],
+];
+
+// "Não como de jeito nenhum": grupos simples em vez de 60 alimentos.
+const DISLIKES = [
+  ['Batata-doce', [88]], ['Mandioca', [129]], ['Cuscuz', [533]], ['Tapioca', [9005]], ['Aveia', [7]],
+  ['Feijão', [561, 567]], ['Lentilha', [577]], ['Grão-de-bico', [9012]], ['Abóbora', [64]], ['Brócolis', [100]],
+  ['Couve', [116]], ['Abobrinha / berinjela', [70, 72, 95]], ['Beterraba', [97]], ['Iogurte', [448, 449, 9006]],
+  ['Cottage / ricota', [9014, 469]], ['Requeijão', [468]], ['Atum / sardinha', [277, 318, 319]], ['Tofu', [584]],
+  ['Proteína de soja', [9015, 583]], ['Peito de peru / presunto', [9010, 439]], ['Abacate', [163]], ['Mamão', [225, 226]],
+  ['Banana', [182]], ['Pasta de amendoim', [9004]], ['Café', [471]],
+];
+
+const GOAL_OPTS = [
+  ['cut', '🔥 Secar', 'Perder gordura'],
+  ['recomp', '⚖️ Recomposição', 'Perder gordura e ganhar músculo'],
+  ['maintain', '🎯 Manter', 'Manter peso e performance'],
+  ['bulk', '💪 Ganhar massa', 'Superávit controlado'],
+];
+
+// Perguntas da Nutri: uma por vez, quase tudo em um toque.
+const STEPS = [
+  { id: 'goal', ask: 'Oi! Sou a Nutri do FitQuest 👋 Vou montar seu plano em poucas perguntas. Qual é o seu objetivo agora?', opts: GOAL_OPTS },
+  { id: 'style', ask: 'Qual estilo de comida combina mais com você?', style: true },
+  { id: 'meals', ask: 'Quantas refeições você consegue fazer por dia?', opts: [[3, '3', 'Rotina corrida'], [4, '4', 'Equilibrado'], [5, '5', 'Recomendado'], [6, '6', 'Muita fome / ganho']] },
+  { id: 'trainTime', ask: 'Em que horário você costuma treinar? Eu coloco mais carboidrato perto do treino.', opts: [['manha', '🌅 Manhã'], ['tarde', '☀️ Tarde'], ['noite', '🌙 Noite'], ['nao', 'Não treino']] },
+  { id: 'restrictions', ask: 'Alguma restrição ou alergia?', multi: RESTRICTIONS },
+  { id: 'cookTime', ask: 'Quanto tempo você tem para cozinhar?', opts: [['none', '⚡ Quase nada', 'Rápido ou sem fogão'], ['quick', '🍳 Até 20 min', 'Pratos simples'], ['cook', '👩‍🍳 Gosto de cozinhar', 'Receitas mais elaboradas']] },
+  { id: 'recipes', ask: 'Quer que eu mostre o modo de preparo de cada refeição?', opts: [[true, 'Sim, com receitas'], [false, 'Não, só os alimentos']] },
+  { id: 'budget', ask: 'E o orçamento para a feira?', opts: [['eco', '💰 Econômico', 'Evito salmão, whey, castanhas…'], ['normal', 'Normal']] },
+  { id: 'dislikes', ask: 'Tem algo que você não come de jeito nenhum? (opcional)', dislikes: true },
+];
+
+const optLabel = (st, v, a) => {
+  if (st.id === 'style') return `${DIET_STYLES[v].emoji} ${DIET_STYLES[v].label}`;
+  if (st.id === 'restrictions') {
+    const on = RESTRICTIONS.filter(([k]) => a[k]).map(([, l]) => l);
+    return on.length ? on.join(', ') : 'Nenhuma';
+  }
+  if (st.id === 'dislikes') {
+    const on = DISLIKES.filter(([, ids]) => ids.some((id) => a.excluded.includes(id))).map(([l]) => l);
+    return on.length ? on.join(', ') : 'Como de tudo';
+  }
+  const o = st.opts.find((x) => x[0] === v);
+  return o ? o[1] : String(v);
 };
 
 function PlanTab({ s, today }) {
@@ -429,41 +477,65 @@ function PlanTab({ s, today }) {
   const t = targets(s);
   if (!t) return null;
   if (editing || !s.dietPlan) {
-    return html`<${PlanForm} initial=${s.dietPlan?.answers ?? DEFAULT_ANSWERS} t=${t} onDone=${() => setEditing(false)} canCancel=${!!s.dietPlan} />`;
+    return html`<${NutriChat} s=${s} initial=${s.dietPlan?.answers} onDone=${() => setEditing(false)} canCancel=${!!s.dietPlan} />`;
   }
+  return html`<${PlanView} s=${s} t=${t} today=${today} onRedo=${() => setEditing(true)} />`;
+}
+
+function PlanView({ s, t, today, onRedo }) {
   const plan = s.dietPlan;
+  const goalT = plan.target;
   const tot = sumMacros(plan.meals.flatMap((m) => m.items));
-  const regen = () => update((st) => { st.dietPlan = generatePlan(t, plan.answers, Date.now()); });
-  const outdated = Math.abs(plan.target.kcal - t.kcal) > 50 || Math.abs(plan.target.protein - t.protein) > 5;
+  const a = plan.answers ?? {};
+  const style = DIET_STYLES[a.style];
+  const regen = () => update((st) => { st.dietPlan = generatePlan(targets(st), { ...plan.answers, kg: latestWeight(st) }, Date.now()); });
+  const base = plan.baseTarget ?? plan.target;
+  const outdated = Math.abs(base.kcal - t.kcal) > 50 || Math.abs(base.protein - t.protein) > 5;
+  const dev = Math.max(...[[tot.kcal, goalT.kcal], [tot.p, goalT.protein], [tot.c, goalT.carbs]].map(([v, g]) => Math.abs(v - g) / g));
+  const showRecipes = a.recipes !== false;
 
   return html`
     <div class="stack">
+      ${plan.version !== 3 && html`<div class="callout small" style="border-left-color:var(--accent)">A Nutri ganhou um questionário novo, com estilos de dieta e receitas. <button class="link-btn" onClick=${onRedo}>Refazer agora</button></div>`}
       <div class="card ink">
-        <div class="row-sb"><div class="eyebrow">Plano gerado · ${plan.meals.length} refeições</div><span class="mono tiny">${fmtDate(dateKey(new Date(plan.createdAt)))}</span></div>
-        <div class="row-sb" style="margin-top:8px"><span class="big-num">${num(tot.kcal)}</span><span class="mono small">/ ${num(t.kcal)} kcal</span></div>
+        <div class="row-sb"><div class="eyebrow">Plano da Nutri${style ? ` · ${style.emoji} ${style.label}` : ''}</div><span class="mono tiny">${fmtDate(dateKey(new Date(plan.createdAt)))}</span></div>
+        <div class="row-sb" style="margin-top:8px"><span class="big-num">${num(tot.kcal)}</span><span class="mono small">/ ${num(goalT.kcal)} kcal</span></div>
         <div class="grid-3" style="margin-top:10px">
-          ${[['P', tot.p, t.protein], ['C', tot.c, t.carbs], ['G', tot.f, t.fat]].map(([l, v, g]) => html`
-            <div><div class="mono" style="font-weight:700;font-size:18px">${num(v)}g</div><div class="eyebrow">${l} · meta ${g}</div></div>
+          ${[['P', tot.p, goalT.protein], ['C', tot.c, goalT.carbs], ['G', tot.f, goalT.fat]].map(([l, v, g]) => html`
+            <div><div class="mono" style="font-weight:700;font-size:18px">${num(v)}g</div><div class="eyebrow">${l} · meta ${num(g)}</div></div>
           `)}
         </div>
       </div>
       ${outdated && html`<div class="callout warn small">Suas metas mudaram desde que o plano foi gerado. <button class="link-btn" onClick=${regen}>Recalcular</button></div>`}
-      ${(() => {
-        const dev = Math.max(...[[tot.kcal, t.kcal], [tot.p, t.protein], [tot.c, t.carbs]].map(([v, g]) => Math.abs(v - g) / g));
-        return dev > 0.1 && html`<div class="callout warn small">Com essas restrições o plano ficou ${Math.round(dev * 100)}% fora de alguma meta. Aumentar o número de refeições ou incluir mais fontes de proteína ajuda.</div>`;
-      })()}
+      ${dev > 0.1 && html`<div class="callout warn small">Com essas escolhas o plano ficou ${Math.round(dev * 100)}% fora de alguma meta. Mais refeições ou menos restrições de proteína ajudam.</div>`}
+      ${plan.notes && html`
+        <div class="card nutri-card">
+          <div class="row" style="gap:10px;align-items:flex-start">
+            <span class="nutri-avatar">🥗</span>
+            <div class="grow stack-sm">
+              <div class="eyebrow">Análise da Nutri</div>
+              <ul class="nutri-list">${plan.notes.why.map((x) => html`<li>${x}</li>`)}</ul>
+              <details><summary class="small"><b>Dicas para seguir o plano</b></summary><ul class="nutri-list" style="margin-top:6px">${plan.notes.tips.map((x) => html`<li>${x}</li>`)}</ul></details>
+            </div>
+          </div>
+        </div>`}
       ${plan.meals.map((m) => {
         const mt = sumMacros(m.items);
         const opts = m.options ?? [];
+        const opt = opts[m.choice ?? 0];
         return html`
           <div class="meal" key=${m.key}>
-            <div class="meal-head"><h3>${MEALS.find((x) => x.key === m.key).label}</h3><span class="mono tiny">${num(mt.kcal)} kcal · ${num(mt.p)}P · ${num(mt.c)}C · ${num(mt.f)}G</span></div>
+            <div class="meal-head">
+              <h3>${m.when ? html`<span class="mono tiny muted">${m.when}</span> ` : ''}${MEALS.find((x) => x.key === m.key).label}</h3>
+              ${m.badge && html`<span class="tag acc">${m.badge}</span>`}
+              <span class="mono tiny">${num(mt.kcal)} kcal · ${num(mt.p)}P · ${num(mt.c)}C · ${num(mt.f)}G</span>
+            </div>
             ${opts.length > 1 && html`
               <div class="opt-row">
                 ${opts.map((o, oi) => html`<button class=${`chip ${(m.choice ?? 0) === oi ? 'on' : ''}`} onClick=${() => chooseOption(m.key, oi)}>Opção ${oi + 1}</button>`)}
               </div>
             `}
-            ${m.name && html`<div class="meal-name">${m.name}</div>`}
+            ${m.name && html`<div class="meal-name">${m.name}${opt?.time ? html` <span class="mono tiny muted">· ⏱ ${opt.time} min</span>` : ''}</div>`}
             ${m.items.map((it, i) => {
               const f = getFood(it.foodId);
               const hm = houseMeasure(it.foodId, it.g);
@@ -474,15 +546,21 @@ function PlanTab({ s, today }) {
                 </div>
               `;
             })}
+            ${showRecipes && opt?.recipe?.length > 0 && html`
+              <details class="recipe">
+                <summary>Modo de preparo</summary>
+                <ol>${opt.recipe.map((r) => html`<li>${r}</li>`)}</ol>
+              </details>`}
           </div>
         `;
       })}
       <button class="btn primary" onClick=${() => applyPlan(plan, today)}><${Icon} name="copy" />Aplicar ao diário de hoje</button>
+      <button class="btn" onClick=${() => openShoppingList(plan)}><${Icon} name="diet" />Lista de compras da semana</button>
       <div class="row">
-        <button class="btn grow" onClick=${regen}>Gerar outro</button>
-        <button class="btn grow" onClick=${() => setEditing(true)}>Refazer perguntas</button>
+        <button class="btn grow" onClick=${regen}>Outras opções</button>
+        <button class="btn grow" onClick=${onRedo}>Refazer perguntas</button>
       </div>
-      <p class="tiny muted">Porções em peso pronto para consumo (exceto quando indicado “cru”). Valores da TACO/UNICAMP. Plano automático é ponto de partida — ajuste com um nutricionista se tiver condições de saúde específicas.</p>
+      <p class="tiny muted">Porções em peso pronto para consumo (exceto quando indicado “cru”). Valores da TACO/UNICAMP. A Nutri do app é um assistente automático, não substitui um nutricionista — especialmente com condições de saúde específicas.</p>
     </div>
   `;
 }
@@ -519,55 +597,111 @@ function openSubstitutes(mealKey, idx, item) {
   `);
 }
 
-function PlanForm({ initial, t, onDone, canCancel }) {
-  const [a, setA] = useState({ ...DEFAULT_ANSWERS, ...initial });
-  const set = (k) => (v) => setA((o) => ({ ...o, [k]: v }));
-  const toggleIn = (k, id) => setA((o) => ({ ...o, [k]: o[k].includes(id) ? o[k].filter((x) => x !== id) : [...o[k], id] }));
-  const proteins = [...POOLS.protein_main, ...POOLS.protein_light].filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i);
-  const carbs = [...POOLS.carb_main, ...POOLS.carb_breakfast];
-  const go = () => {
-    update((s) => { s.dietPlan = generatePlan(t, a, Date.now()); });
-    onDone();
+// Lista de compras: opções escolhidas × 7 dias, agrupada por tipo de alimento.
+export function shoppingList(plan, days = 7) {
+  const tot = new Map();
+  for (const m of plan.meals) for (const it of m.items) tot.set(it.foodId, (tot.get(it.foodId) ?? 0) + it.g * days);
+  const groups = new Map();
+  for (const [id, g] of tot) {
+    const f = getFood(id);
+    if (!f) continue;
+    const { units, preferred } = unitsFor(f);
+    const u = preferred && units[0];
+    const qty = u ? unitText(Math.ceil(g / u.g), u) : g >= 1000 ? `${String(+(g / 1000).toFixed(1)).replace('.', ',')} kg` : `${Math.round(g / 10) * 10} g`;
+    const cat = f.custom ? 'Outros' : categoryName(f.cat);
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push({ name: shortName(id), qty });
+  }
+  return [...groups.entries()].map(([cat, items]) => ({ cat, items: items.sort((a, b) => a.name.localeCompare(b.name)) }));
+}
+
+function openShoppingList(plan) {
+  const list = shoppingList(plan);
+  const text = list.map((g) => `${g.cat.toUpperCase()}\n${g.items.map((i) => `- ${i.name}: ${i.qty}`).join('\n')}`).join('\n\n');
+  openModal((close) => html`
+    <${Sheet} title="Lista de compras · 7 dias" onClose=${close} footer=${html`<button class="btn primary block" onClick=${async () => { try { await navigator.clipboard.writeText(text); toast('Lista copiada'); } catch { toast('Não foi possível copiar'); } }}><${Icon} name="copy" />Copiar lista</button>`}>
+      <p class="small muted">Com as opções escolhidas hoje em cada refeição, repetidas por 7 dias. Pesos de alimentos prontos (arroz, feijão e carnes cozidos rendem mais do que o peso cru).</p>
+      ${list.map((g) => html`
+        <div class="stack-sm">
+          <div class="eyebrow">${g.cat}</div>
+          <div class="list">${g.items.map((i) => html`<div class="li"><span class="t grow">${i.name}</span><b class="mono small">${i.qty}</b></div>`)}</div>
+        </div>`)}
+    <//>
+  `);
+}
+
+// --- Questionário em conversa com a Nutri ----------------------------------------------
+
+function NutriChat({ s, initial, onDone, canCancel }) {
+  const [a, setA] = useState(() => ({ ...DEFAULT_ANSWERS, ...(initial ?? {}), goal: s.profile?.goal ?? initial?.goal ?? 'maintain' }));
+  const [step, setStep] = useState(0);
+  const [thinking, setThinking] = useState(false);
+  const cur = STEPS[step];
+  const answer = (k, v) => {
+    setA((o) => ({ ...o, [k]: v }));
+    setStep((i) => i + 1);
   };
+  const toggle = (k) => setA((o) => {
+    const n = { ...o, [k]: !o[k] };
+    if (k === 'vegan' && n.vegan) n.vegetarian = true;
+    return n;
+  });
+  const toggleDislike = (ids) => setA((o) => {
+    const on = ids.some((id) => o.excluded.includes(id));
+    return { ...o, excluded: on ? o.excluded.filter((x) => !ids.includes(x)) : [...o.excluded, ...ids] };
+  });
+  const finish = () => {
+    setThinking(true);
+    setTimeout(() => {
+      update((st) => {
+        if (st.profile && a.goal && st.profile.goal !== a.goal) st.profile.goal = a.goal;
+      });
+      const st = getState();
+      update((x) => { x.dietPlan = generatePlan(targets(st), { ...a, kg: latestWeight(st) }, Date.now()); });
+      onDone();
+    }, 700);
+  };
+  const tNow = targets(s);
   return html`
     <div class="stack">
-      <div class="card accent">
-        <div class="eyebrow">Gerador automático</div>
-        <h2 style="margin-top:4px">Monte seu plano em 1 minuto</h2>
-        <p class="small" style="margin-top:6px">Cardápios brasileiros prontos (arroz e feijão, tapioca, cuscuz, omelete…) com 3 opções por refeição. Só as quantidades mudam para bater sua meta: <b class="mono">${num(t.kcal)} kcal · P ${t.protein} · C ${t.carbs} · G ${t.fat}</b>. Ajuste as metas na aba Metas.</p>
+      <div class="row-sb">
+        <div class="row" style="gap:10px"><span class="nutri-avatar">🥗</span><div><div class="eyebrow">Nutri FitQuest</div><div class="tiny muted">Seu plano em ~1 minuto</div></div></div>
+        ${canCancel && html`<button class="btn xs" onClick=${onDone}>Cancelar</button>`}
       </div>
-      <${Field} label="Quantas refeições por dia?">
-        <${Seg} value=${a.meals} onChange=${set('meals')} options=${[3, 4, 5, 6].map((n) => [n, String(n)])} />
-      <//>
-      <${Field} label="Restrições">
-        <div class="grid-2">
-          <${Check} checked=${a.vegetarian} onChange=${set('vegetarian')}>Vegetariano<//>
-          <${Check} checked=${a.vegan} onChange=${set('vegan')}>Vegano<//>
-          <${Check} checked=${a.lactoseFree} onChange=${set('lactoseFree')}>Sem lactose<//>
-          <${Check} checked=${a.glutenFree} onChange=${set('glutenFree')}>Sem glúten<//>
-          <${Check} checked=${a.noFish} onChange=${set('noFish')}>Sem peixe<//>
-          <${Check} checked=${a.nutAllergy} onChange=${set('nutAllergy')}>Sem oleaginosas<//>
-          <${Check} checked=${a.noSupplements} onChange=${set('noSupplements')}>Sem suplementos<//>
-          <${Check} checked=${a.noPork} onChange=${set('noPork')}>Sem carne de porco<//>
-          <${Check} checked=${a.noSoy} onChange=${set('noSoy')}>Sem soja<//>
-        </div>
-      <//>
-      <${Field} label="Estilo">
-        <${Check} checked=${a.lightDinner} onChange=${set('lightDinner')}>Jantar mais leve (menos carboidrato à noite)<//>
-      <//>
-      <${Field} label="Proteínas preferidas" hint="Opcional. Deixe vazio para variar entre todas.">
-        <div class="chips">${proteins.map((p) => html`<button class=${`chip ${a.preferredProteins.includes(p.id) ? 'on' : ''}`} onClick=${() => toggleIn('preferredProteins', p.id)}>${p.label}</button>`)}</div>
-      <//>
-      <${Field} label="Carboidratos preferidos" hint="Opcional.">
-        <div class="chips">${carbs.map((p) => html`<button class=${`chip ${a.preferredCarbs.includes(p.id) ? 'on' : ''}`} onClick=${() => toggleIn('preferredCarbs', p.id)}>${p.label}</button>`)}</div>
-      <//>
-      <${Field} label="Não gosto / não como" hint="Esses alimentos ficam de fora.">
-        <div class="chips">${MENU_FOODS.map((id) => html`<button class=${`chip ${a.excluded.includes(id) ? 'on' : ''}`} onClick=${() => toggleIn('excluded', id)}>${shortName(id)}</button>`)}</div>
-      <//>
-      <div class="row">
-        ${canCancel && html`<button class="btn" onClick=${onDone}>Cancelar</button>`}
-        <button class="btn primary grow" onClick=${go}><${Icon} name="bolt" />Gerar plano</button>
+      <div class="xp-bar" style="height:10px"><i style=${`width:${Math.round((Math.min(step, STEPS.length) / STEPS.length) * 100)}%`}></i></div>
+      <div class="chat">
+        ${STEPS.slice(0, step).map((st, i) => html`
+          <div class="bubble bot small">${st.ask}</div>
+          <button class="bubble me" title="Alterar" onClick=${() => setStep(i)}>${optLabel(st, st.id === 'restrictions' || st.id === 'dislikes' ? null : a[st.id], a)} <span class="tiny">✎</span></button>
+        `)}
+        ${cur && html`<div class="bubble bot">${cur.ask}</div>`}
+        ${cur?.id === 'goal' && s.manualTargets && html`<div class="tiny muted">Você usa metas manuais (${num(tNow.kcal)} kcal) — o objetivo muda só o estilo das refeições.</div>`}
+        ${step >= STEPS.length && !thinking && html`
+          <div class="bubble bot">Perfeito! Vou montar ${a.meals} refeições no estilo <b>${DIET_STYLES[a.style].label.toLowerCase()}</b>, com 3 opções equivalentes em cada uma${a.recipes ? ' e o modo de preparo' : ''}.</div>`}
+        ${thinking && html`<div class="bubble bot typing"><i></i><i></i><i></i></div>`}
       </div>
+
+      ${cur?.opts && html`
+        <div class=${`answer-grid ${cur.opts.some((o) => o[2]) ? 'with-hint' : ''}`}>
+          ${cur.opts.map(([v, l, hint]) => html`
+            <button class=${`answer ${a[cur.id] === v ? 'on' : ''}`} onClick=${() => answer(cur.id, v)}><b>${l}</b>${hint && html`<span>${hint}</span>`}</button>`)}
+        </div>`}
+      ${cur?.style && html`
+        <div class="answer-grid with-hint">
+          ${Object.entries(DIET_STYLES).map(([k, st]) => html`
+            <button class=${`answer ${a.style === k ? 'on' : ''}`} onClick=${() => { if (k === 'vegana') setA((o) => ({ ...o, vegan: true, vegetarian: true })); if (k === 'vegetariana') setA((o) => ({ ...o, vegetarian: true })); answer('style', k); }}>
+              <b>${st.emoji} ${st.label}</b><span>${st.desc}</span>
+            </button>`)}
+        </div>`}
+      ${cur?.multi && html`
+        <div class="chips">${cur.multi.map(([k, l]) => html`<button class=${`chip ${a[k] ? 'on' : ''}`} onClick=${() => toggle(k)}>${l}</button>`)}</div>
+        <button class="btn primary" onClick=${() => setStep((i) => i + 1)}>${RESTRICTIONS.some(([k]) => a[k]) ? 'Continuar' : 'Nenhuma, continuar'}</button>`}
+      ${cur?.dislikes && html`
+        <div class="chips">${DISLIKES.map(([l, ids]) => html`<button class=${`chip ${ids.some((id) => a.excluded.includes(id)) ? 'on' : ''}`} onClick=${() => toggleDislike(ids)}>${l}</button>`)}</div>
+        <button class="btn primary" onClick=${() => setStep((i) => i + 1)}>${a.excluded.length ? 'Continuar' : 'Como de tudo, continuar'}</button>`}
+      ${step >= STEPS.length && html`
+        <button class="btn primary" disabled=${thinking} onClick=${finish}><${Icon} name="bolt" />${thinking ? 'Montando seu plano…' : 'Montar meu plano'}</button>`}
+      ${step > 0 && !thinking && html`<button class="btn ghost sm" onClick=${() => setStep((i) => i - 1)}>← Voltar</button>`}
     </div>
   `;
 }

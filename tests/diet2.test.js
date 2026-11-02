@@ -57,3 +57,51 @@ test('Open Food Facts → valores por 100 g', () => {
   assert.equal(r.serving, 170);
   assert.equal(fromOpenFoodFacts('1', { status: 0 }), null);
 });
+
+import { DIET_STYLES, foodTags, effectiveTarget } from '../js/dietgen.js';
+import { RECIPES } from '../js/data/recipes.js';
+
+test('todo cardápio tem receita, tempo e estilo', () => {
+  for (const t of MENU_TEMPLATES) {
+    const r = RECIPES[t.id];
+    assert.ok(r && r.recipe.length && r.time > 0 && Array.isArray(r.tags), t.id);
+  }
+});
+
+test('estilos: vegetariano/vegano nunca recebem carne/peixe (inclusive opções)', () => {
+  for (const style of ['vegetariana', 'vegana']) {
+    for (const seed of [1, 2, 3]) {
+      const p = generatePlan(T, { style, goal: 'cut', meals: 5 }, seed);
+      for (const m of p.meals) for (const o of m.options) for (const it of o.items) {
+        const tags = foodTags(it.foodId);
+        assert.ok(!tags.includes('carne') && !tags.includes('peixe'), `${style}: ${o.name} → ${it.foodId}`);
+        if (style === 'vegana') assert.ok(!tags.includes('ovo') && !tags.includes('lactose'), `vegana: ${o.name} → ${it.foodId}`);
+      }
+    }
+  }
+});
+
+test('low carb: carboidrato reduzido e cardápios low carb', () => {
+  const eff = effectiveTarget(T, { style: 'lowcarb' });
+  assert.ok(eff.carbs < 100 && eff.fat > T.fat);
+  const p = generatePlan(T, { style: 'lowcarb', goal: 'cut', meals: 4, trainTime: 'tarde' }, 7);
+  assert.ok(p.totals.c < 110, `c ${p.totals.c}`);
+  assert.ok(Math.abs(p.totals.p - T.protein) / T.protein < 0.1, `p ${p.totals.p}`);
+  assert.ok(p.meals.every((m) => m.options[0].tags.includes('lowcarb')), 'opção principal low carb');
+});
+
+test('treino e objetivo: pré/pós-treino marcados, notas, sem proteína repetida no almoço e jantar', () => {
+  const p = generatePlan(T, { style: 'tradicional', goal: 'cut', meals: 5, trainTime: 'noite', kg: 80 }, 5);
+  assert.equal(p.meals.find((m) => m.key === 'jantar').badge, 'Pós-treino');
+  assert.equal(p.meals.find((m) => m.key === 'lanche2').badge, 'Pré-treino');
+  assert.ok(p.notes.why.length >= 3 && p.notes.tips.length >= 2);
+  const mainProt = (k) => MENU_TEMPLATES.find((t) => t.id === p.meals.find((m) => m.key === k).options[0].templateId).items.find((i) => i[1] === 'p')[0];
+  assert.notEqual(mainProt('almoco'), mainProt('jantar'));
+  assert.ok(p.version === 3 && p.meals.every((m) => m.when));
+  assert.ok(Object.keys(DIET_STYLES).length >= 8);
+});
+
+test('sem tempo para cozinhar: só preparos rápidos na opção principal', () => {
+  const p = generatePlan(T, { style: 'pratica', cookTime: 'none', meals: 4 }, 9);
+  assert.ok(p.meals.every((m) => m.options[0].time <= 15), p.meals.map((m) => m.options[0].time).join(','));
+});

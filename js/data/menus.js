@@ -19,7 +19,7 @@ export const MENU_TEMPLATES = [
   { id: 'cafe-vitamina-whey', slots: ['cafe', 'lanche'], name: 'Vitamina de banana com whey, aveia e pasta de amendoim', items: [[9002, 'x', 250, 250, 250], [9003, 'p', 30, 15, 50], [7, 'c', 30, 10, 80], [182, 'x', 70, 70, 70], [9004, 'f', 10, 0, 30]] },
   { id: 'cafe-crepioca', slots: ['cafe', 'lanche', 'ceia'], name: 'Crepioca com mussarela e tomate', items: [[488, 'p', 100, 50, 200], [9005, 'c', 30, 15, 80], [463, 'f', 20, 0, 40], [157, 'x', 50, 50, 50]] },
   { id: 'cafe-ovos-batata', slots: ['cafe'], name: 'Ovos mexidos com batata-doce e café', items: [[488, 'p', 150, 50, 200], [88, 'c', 150, 80, 300], [260, 'f', 3, 0, 8], [471, 'x', 150, 150, 150]] },
-  { id: 'cafe-tofu', slots: ['cafe'], name: 'Tofu mexido com pão integral e mamão', items: [[584, 'p', 150, 80, 300], [52, 'c', 50, 25, 125], [260, 'f', 5, 0, 12], [225, 'x', 150, 150, 150]] },
+  { id: 'cafe-tofu', slots: ['cafe'], name: 'Tofu mexido com pão integral e mamão', items: [[584, 'p', 150, 80, 400], [52, 'c', 50, 25, 125], [260, 'f', 5, 0, 12], [225, 'x', 150, 150, 150]] },
   { id: 'cafe-mingau-soja', slots: ['cafe', 'ceia'], name: 'Mingau de aveia com bebida de soja, banana e pasta de amendoim', items: [[582, 'p', 250, 200, 400], [7, 'c', 40, 20, 90], [182, 'x', 70, 70, 70], [9004, 'f', 15, 0, 30], [9016, 'x', 5, 5, 5]] },
   { id: 'cafe-tapioca-vegana', slots: ['cafe', 'lanche'], name: 'Tapioca com pasta de amendoim e banana + shake de soja', items: [[9005, 'c', 50, 30, 100], [583, 'p', 25, 15, 50], [9004, 'f', 15, 0, 30], [182, 'x', 70, 70, 70]] },
   { id: 'cafe-pao-queijo-iog', slots: ['cafe'], name: 'Pão francês com queijo minas + iogurte e morango', items: [[53, 'c', 50, 50, 100], [461, 'f', 30, 0, 50], [449, 'p', 170, 100, 340], [239, 'x', 100, 100, 100]] },
@@ -64,13 +64,48 @@ export const MENU_TEMPLATES = [
   { id: 'pf-cuscuz-frango', slots: ['almoco', 'jantar'], name: 'Cuscuz com frango desfiado e salada', items: [[533, 'c', 150, 80, 400], [408, 'p', 120, 80, 280], [78, 'x', 40, 40, 40], [157, 'x', 60, 60, 60], [260, 'f', 5, 0, 15]] },
   { id: 'pf-omelete', slots: ['almoco', 'jantar'], name: 'Omelete de queijo com arroz, feijão e salada', items: [[488, 'p', 150, 100, 250], [463, 'f', 20, 0, 40], [3, 'c', 120, 60, 350], [561, 'c', 80, 60, 160], [78, 'x', 40, 40, 40], [157, 'x', 60, 60, 60]] },
   { id: 'pf-lentilha-ovo', slots: ['almoco', 'jantar'], name: 'Lentilha com arroz, ovo cozido e abóbora', items: [[577, 'p', 150, 80, 300], [488, 'p', 50, 50, 150], [3, 'c', 120, 60, 300], [64, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
-  { id: 'pf-tofu-arroz', slots: ['almoco', 'jantar'], name: 'Tofu grelhado, arroz, feijão e legumes', items: [[584, 'p', 200, 100, 400], [3, 'c', 130, 60, 350], [567, 'c', 100, 80, 250], [100, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
+  { id: 'pf-tofu-arroz', slots: ['almoco', 'jantar'], name: 'Tofu grelhado, arroz, feijão e legumes', items: [[584, 'p', 200, 100, 500], [3, 'c', 130, 60, 350], [567, 'c', 100, 80, 250], [100, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
   { id: 'pf-graodebico', slots: ['almoco', 'jantar'], name: 'Grão-de-bico ensopado com arroz integral e couve', items: [[9012, 'p', 150, 80, 350], [1, 'c', 120, 60, 300], [116, 'x', 50, 50, 50], [159, 'x', 40, 40, 40], [260, 'f', 5, 0, 12]] },
-  { id: 'pf-pts-bolonhesa', slots: ['almoco', 'jantar'], name: 'Macarrão com bolonhesa de proteína de soja', items: [[9015, 'p', 150, 80, 350], [9013, 'c', 150, 80, 400], [159, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
+  { id: 'pf-pts-bolonhesa', slots: ['almoco', 'jantar'], name: 'Macarrão com bolonhesa de proteína de soja', items: [[9015, 'p', 150, 80, 450], [9013, 'c', 150, 80, 400], [159, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
   { id: 'pf-frango-mandioca', slots: ['almoco', 'jantar'], name: 'Coxa de frango assada, mandioca cozida e salada', items: [[398, 'p', 130, 80, 280], [129, 'c', 150, 60, 350], [78, 'x', 40, 40, 40], [142, 'x', 40, 40, 40], [260, 'f', 3, 0, 10]] },
   { id: 'pf-sardinha', slots: ['almoco', 'jantar'], name: 'Sardinha assada, arroz, feijão e beterraba', items: [[318, 'p', 120, 80, 220], [3, 'c', 130, 60, 350], [561, 'c', 80, 60, 160], [97, 'x', 60, 60, 60]] },
   { id: 'pf-jantar-leve', slots: ['jantar'], name: 'Frango grelhado com purê de abóbora e salada (leve)', items: [[410, 'p', 140, 80, 300], [64, 'c', 200, 100, 400], [78, 'x', 40, 40, 40], [157, 'x', 60, 60, 60], [260, 'f', 8, 0, 20]] },
   { id: 'pf-jantar-sopa', slots: ['jantar'], name: 'Sopa de legumes com carne e batata', items: [[371, 'p', 120, 80, 250], [91, 'c', 150, 80, 350], [109, 'x', 60, 60, 60], [112, 'x', 60, 60, 60], [70, 'x', 60, 60, 60], [260, 'f', 5, 0, 15]] },
+
+  { id: 'lan-shake-soja', slots: ['lanche', 'cafe', 'ceia'], name: 'Shake de proteína de soja com bebida de soja e frutas vermelhas', items: [[583, 'p', 30, 15, 60], [582, 'x', 250, 250, 250], [239, 'c', 100, 60, 200]] },
+  { id: 'pf-tofu-legumes', slots: ['almoco', 'jantar'], name: 'Tofu e grão-de-bico salteados com legumes e arroz integral', items: [[584, 'p', 150, 100, 400], [9012, 'p', 80, 0, 200], [1, 'c', 100, 50, 300], [100, 'x', 100, 100, 100], [72, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
+
+  // ---------------- Low carb ----------------
+  { id: 'lc-omelete-abacate', slots: ['cafe'], name: 'Omelete de queijo com tomate e abacate', items: [[488, 'p', 150, 100, 250], [463, 'f', 20, 0, 40], [157, 'x', 60, 60, 60], [163, 'f', 60, 0, 160], [471, 'x', 100, 100, 100]] },
+  { id: 'lc-ovos-presunto', slots: ['cafe', 'lanche'], name: 'Ovos mexidos com presunto, queijo minas e café', items: [[488, 'p', 100, 50, 200], [439, 'p', 30, 0, 60], [461, 'f', 30, 0, 50], [471, 'x', 100, 100, 100]] },
+  { id: 'lc-iogurte-castanhas', slots: ['cafe', 'lanche', 'ceia'], name: 'Iogurte grego com castanhas, morango e chia', items: [[9006, 'p', 170, 100, 340], [589, 'f', 15, 0, 40], [239, 'x', 80, 80, 80], [9016, 'x', 5, 5, 5]] },
+  { id: 'lc-frango-legumes', slots: ['almoco', 'jantar'], name: 'Frango grelhado com legumes salteados no azeite', items: [[410, 'p', 150, 100, 300], [100, 'x', 120, 120, 120], [72, 'x', 100, 100, 100], [118, 'x', 80, 80, 80], [260, 'f', 10, 0, 35]] },
+  { id: 'lc-carne-abobora', slots: ['almoco', 'jantar'], name: 'Patinho grelhado com abóbora assada e couve', items: [[377, 'p', 150, 100, 300], [64, 'c', 150, 60, 250], [116, 'x', 60, 60, 60], [260, 'f', 5, 0, 20]] },
+  { id: 'lc-salada-atum', slots: ['almoco', 'jantar'], name: 'Saladão de atum com ovo e abacate', items: [[277, 'p', 100, 60, 200], [488, 'p', 50, 50, 100], [78, 'x', 60, 60, 60], [157, 'x', 80, 80, 80], [142, 'x', 50, 50, 50], [163, 'f', 60, 0, 160], [260, 'f', 5, 0, 20]] },
+  { id: 'lc-salmao-legumes', slots: ['almoco', 'jantar'], name: 'Salmão grelhado com brócolis e abobrinha', items: [[317, 'p', 150, 100, 250], [100, 'x', 120, 120, 120], [72, 'x', 100, 100, 100], [260, 'f', 8, 0, 30]] },
+  { id: 'lc-omelete-espinafre', slots: ['almoco', 'jantar'], name: 'Omelete de espinafre e queijo com salada', items: [[488, 'p', 150, 100, 250], [120, 'x', 60, 60, 60], [461, 'f', 30, 0, 60], [78, 'x', 40, 40, 40], [157, 'x', 60, 60, 60]] },
+  { id: 'lc-frango-pure-couveflor', slots: ['almoco', 'jantar'], name: 'Frango ao molho de tomate com purê de couve-flor', items: [[408, 'p', 150, 100, 300], [118, 'x', 200, 200, 200], [159, 'x', 50, 50, 50], [262, 'f', 10, 0, 30]] },
+  { id: 'lc-ovos-abacate', slots: ['lanche', 'ceia'], name: 'Ovos cozidos com abacate e sal', items: [[488, 'p', 100, 50, 200], [163, 'f', 80, 0, 200]] },
+  { id: 'lc-queijo-castanha', slots: ['lanche'], name: 'Queijo minas com castanha-de-caju e tomate-cereja', items: [[461, 'p', 60, 30, 120], [588, 'f', 15, 0, 40], [157, 'x', 60, 60, 60]] },
+
+  // ---------------- Mediterrânea ----------------
+  { id: 'med-peixe-grao', slots: ['almoco', 'jantar'], name: 'Merluza assada com salada morna de grão-de-bico', items: [[301, 'p', 150, 100, 300], [9012, 'c', 100, 60, 250], [157, 'x', 60, 60, 60], [142, 'x', 50, 50, 50], [260, 'f', 10, 0, 20]] },
+  { id: 'med-frango-legumes-integral', slots: ['almoco', 'jantar'], name: 'Frango com legumes assados (berinjela e abobrinha) e arroz integral', items: [[410, 'p', 130, 80, 300], [1, 'c', 120, 60, 350], [95, 'x', 80, 80, 80], [72, 'x', 80, 80, 80], [260, 'f', 8, 0, 20]] },
+  { id: 'med-lentilha-tabule', slots: ['almoco', 'jantar'], name: 'Lentilha temperada com tabule', items: [[577, 'p', 150, 80, 300], [549, 'c', 120, 60, 250], [488, 'p', 50, 0, 100], [260, 'f', 5, 0, 15]] },
+  { id: 'med-iogurte-mel-nozes', slots: ['lanche', 'ceia'], name: 'Iogurte natural com mel e nozes', items: [[448, 'p', 170, 100, 340], [597, 'f', 15, 0, 30], [507, 'x', 10, 10, 10]] },
+  { id: 'med-pao-tomate-ovo', slots: ['cafe'], name: 'Torrada integral com tomate, azeite, ovo e queijo branco', items: [[52, 'c', 50, 25, 125], [157, 'x', 60, 60, 60], [260, 'f', 5, 0, 12], [488, 'p', 100, 50, 150], [461, 'x', 20, 20, 20]] },
+
+  // ---------------- Práticas / sem fogão ----------------
+  { id: 'rap-overnight', slots: ['cafe', 'lanche'], name: 'Overnight oats: iogurte, aveia, chia e banana (pronto da geladeira)', items: [[449, 'p', 200, 120, 400], [7, 'c', 40, 15, 90], [9016, 'f', 10, 0, 20], [182, 'x', 70, 70, 70]] },
+  { id: 'rap-sanduiche-atum', slots: ['cafe', 'lanche', 'almoco'], name: 'Sanduíche de atum com requeijão e tomate', items: [[52, 'c', 50, 25, 125], [277, 'p', 60, 30, 150], [468, 'f', 15, 0, 30], [157, 'x', 40, 40, 40], [78, 'x', 15, 15, 15]] },
+  { id: 'rap-misto-quente-frango', slots: ['almoco', 'jantar', 'lanche'], name: 'Sanduíche quente de frango desfiado e mussarela com salada', items: [[53, 'c', 100, 50, 150], [408, 'p', 100, 60, 200], [463, 'f', 20, 0, 40], [78, 'x', 40, 40, 40], [157, 'x', 60, 60, 60]] },
+  { id: 'rap-macarrao-atum', slots: ['almoco', 'jantar'], name: 'Macarrão com atum e molho de tomate (15 min)', items: [[9013, 'c', 150, 80, 400], [277, 'p', 100, 60, 200], [159, 'x', 80, 80, 80], [260, 'f', 5, 0, 15]] },
+  { id: 'rap-ovos-arroz', slots: ['almoco', 'jantar'], name: 'Prato rápido: arroz, feijão, ovos mexidos e salada', items: [[3, 'c', 130, 60, 350], [561, 'c', 80, 60, 160], [488, 'p', 150, 100, 250], [78, 'x', 40, 40, 40], [157, 'x', 60, 60, 60], [260, 'f', 3, 0, 10]] },
+
+  // ---------------- Ganho de massa (mais calóricos) ----------------
+  { id: 'gm-vitamina-hiper', slots: ['cafe', 'lanche'], name: 'Vitamina reforçada: leite, banana, aveia, whey e pasta de amendoim', items: [[9001, 'x', 300, 300, 300], [182, 'x', 100, 100, 100], [7, 'c', 40, 20, 90], [9003, 'p', 30, 15, 50], [9004, 'f', 20, 0, 40]] },
+  { id: 'gm-granola-iogurte', slots: ['cafe', 'lanche'], name: 'Iogurte com granola, banana e mel', items: [[448, 'p', 200, 120, 400], [9011, 'c', 50, 20, 100], [182, 'x', 70, 70, 70], [507, 'x', 10, 10, 10]] },
+  { id: 'gm-macarrao-frango', slots: ['almoco', 'jantar'], name: 'Macarrão com frango, molho de tomate e parmesão', items: [[9013, 'c', 200, 100, 450], [408, 'p', 130, 80, 280], [159, 'x', 80, 80, 80], [464, 'f', 10, 0, 25], [260, 'f', 5, 0, 15]] },
 ];
 
 // Medidas caseiras para mostrar e arredondar porções.
@@ -95,7 +130,9 @@ export const FOOD_TAGS = {
   // glúten
   53: ['gluten'], 52: ['gluten'], 7: ['gluten'], 9011: ['gluten'], 9013: ['gluten'], 13: ['gluten'],
   // oleaginosas
-  589: ['castanha'], 588: ['castanha'], 9004: ['amendoim'],
+  589: ['castanha'], 588: ['castanha'], 597: ['castanha'], 587: ['castanha'], 9004: ['amendoim'],
+  // frios / outros
+  439: ['carne', 'porco'], 464: ['lactose'], 549: ['gluten'],
   // soja
   584: ['soja'], 582: ['soja'], 583: ['soja', 'suplemento'], 9015: ['soja'],
 };

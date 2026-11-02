@@ -105,3 +105,30 @@ test('sem tempo para cozinhar: só preparos rápidos na opção principal', () =
   const p = generatePlan(T, { style: 'pratica', cookTime: 'none', meals: 4 }, 9);
   assert.ok(p.meals.every((m) => m.options[0].time <= 15), p.meals.map((m) => m.options[0].time).join(','));
 });
+
+import { macroTargets } from '../js/calc.js';
+import { sumMacros } from '../js/foods.js';
+
+test('precisão: plano e trocas de opção ficam dentro das metas', () => {
+  const errs = [];
+  let n = 0;
+  for (const sex of ['M', 'F']) for (const kg of [62, 85]) for (const goal of ['cut', 'maintain', 'bulk']) for (const style of Object.keys(DIET_STYLES)) for (const meals of [3, 5]) {
+    n++;
+    const T = macroTargets({ sex, kg, height: sex === 'M' ? 178 : 165, ageYears: 30, activity: 'moderado', goal });
+    const p = generatePlan(T, { style, meals, goal, trainTime: ['manha', 'tarde', 'noite', 'nao'][n % 4] }, n);
+    const t = p.target;
+    const combos = [p.meals.map((m) => m.options[0].items)];
+    p.meals.forEach((m, mi) => m.options.slice(1).forEach((o) => combos.push(p.meals.map((mm, j) => (j === mi ? o.items : mm.options[0].items)))));
+    for (const c of combos) {
+      const tot = sumMacros(c.flat());
+      errs.push(Math.max(Math.abs(tot.kcal - t.kcal) / t.kcal, Math.abs(tot.p - t.protein) / t.protein, Math.abs(tot.c - t.carbs) / t.carbs, Math.abs(tot.f - t.fat) / t.fat));
+      // vegano/vegetariano: nem os complementos da Nutri trazem alimento proibido
+      if (style === 'vegana') for (const it of c.flat()) assert.ok(!foodTags(it.foodId).some((x) => ['carne', 'peixe', 'ovo', 'lactose'].includes(x)), `vegana: ${it.foodId}`);
+    }
+  }
+  errs.sort((a, b) => a - b);
+  const med = errs[Math.floor(errs.length / 2)];
+  const p90 = errs[Math.floor(errs.length * 0.9)];
+  assert.ok(med < 0.035, `mediana ${med}`);
+  assert.ok(p90 < 0.08, `p90 ${p90}`);
+});

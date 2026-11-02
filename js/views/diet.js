@@ -506,6 +506,7 @@ function PlanView({ s, t, today, onRedo }) {
           `)}
         </div>
       </div>
+      ${plan.version === 3 && plan.solver !== 2 && html`<div class="callout small" style="border-left-color:var(--accent)">A Nutri ficou mais precisa nas quantidades. <button class="link-btn" onClick=${regen}>Recalcular meu plano</button> para tudo bater com suas metas.</div>`}
       ${outdated && html`<div class="callout warn small">Suas metas mudaram desde que o plano foi gerado. <button class="link-btn" onClick=${regen}>Recalcular</button></div>`}
       ${dev > 0.1 && html`<div class="callout warn small">Com essas escolhas o plano ficou ${Math.round(dev * 100)}% fora de alguma meta. Mais refeições ou menos restrições de proteína ajudam.</div>`}
       ${plan.notes && html`
@@ -541,11 +542,12 @@ function PlanView({ s, t, today, onRedo }) {
               const hm = houseMeasure(it.foodId, it.g);
               return html`
                 <div class="food-li" key=${i}>
-                  <div class="grow"><div class="t">${hm ? html`<b>${hm}</b> · ` : ''}${f.name}</div><div class="s">${num(it.g)} g · ${fmtMacros(macrosFor(f, it.g))}</div></div>
+                  <div class="grow"><div class="t">${it.add ? html`<span class="tag acc" title="Somado pela Nutri para fechar seus macros">+ ajuste</span> ` : ''}${hm ? html`<b>${hm}</b> · ` : ''}${f.name}</div><div class="s">${num(it.g)} g · ${fmtMacros(macrosFor(f, it.g))}</div></div>
                   <button class="x-btn" aria-label="Substituir" title="Substituir" onClick=${() => openSubstitutes(m.key, i, it)}><${Icon} name="swap" size="14" /></button>
                 </div>
               `;
             })}
+            ${m.items.some((it) => it.add) && html`<p class="tiny muted" style="margin-top:6px">“+ ajuste”: a Nutri somou esse alimento para a refeição bater seus macros.</p>`}
             ${showRecipes && opt?.recipe?.length > 0 && html`
               <details class="recipe">
                 <summary>Modo de preparo</summary>

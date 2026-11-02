@@ -209,7 +209,7 @@ const CAT_TAGS = { 5: ['peixe'], 6: ['carne'], 9: ['ovo'], 7: ['lactose'] };
 export function foodTags(id) {
   const base = FOOD_TAGS[id] ?? [];
   const f = getFood(id);
-  const extra = (f && !f.extra && CAT_TAGS[f.cat]) || [];
+  const extra = (f && CAT_TAGS[f.cat]) || [];
   return [...new Set([...base, ...extra, ...(f?.cat === 6 && /porco|lombo|bisteca|pernil|toucinho|lingui|presunto|salame|mortadela/i.test(f.name) ? ['porco'] : [])])];
 }
 
@@ -234,64 +234,174 @@ export function candidates(slot, a) {
   return MENU_TEMPLATES.filter((t) => t.slots.includes(slot)).map((t) => adaptTemplate(t, a)).filter(Boolean);
 }
 
-// Mínimos quadrados com regularização: bate os macros mexendo o mínimo possível
-// nas quantidades "naturais" da receita (gramasBase).
-export function solveTemplate(items, target) {
-  const foods = items.map(([id]) => getFood(id));
-  const rows = foods.map((f) => [f.p / 100, f.c / 100, f.f / 100]);
-  const w2 = [16, 16, 81];
-  const goal = [target.p, target.c, target.f];
-  const fixed = items.map(([, role]) => role === 'x');
-  const x = items.map(([, , base]) => base);
-  const lam = items.map(([, , base]) => 400 / Math.max(10, base) ** 2);
-  const lo = items.map((it) => it[3]);
-  const hi = items.map((it) => it[4]);
+// --- Ajuste de porções ---------------------------------------------------------------
+//
+// Mínimos quadrados ponderados pelas kcal de cada macro (P e C ×4, G ×9): a prioridade é
+// bater a meta; a quantidade "natural" da receita só desempata (regularização fraca).
+// Limites crescem com a meta (planos de 3.500 kcal precisam de pratos maiores).
 
-  const run = () => {
-    const cur = [0, 0, 0];
-    rows.forEach((r, i) => r.forEach((v, k) => (cur[k] += v * x[i])));
-    for (let iter = 0; iter < 300; iter++) {
-      let moved = 0;
-      for (let i = 0; i < x.length; i++) {
-        if (fixed[i]) continue;
-        const r = rows[i];
-        let num = lam[i] * items[i][2];
-        let den = lam[i];
-        for (let k = 0; k < 3; k++) {
-          const rest = goal[k] - (cur[k] - r[k] * x[i]);
-          num += w2[k] * r[k] * rest;
-          den += w2[k] * r[k] * r[k];
-        }
-        const nx = Math.min(hi[i], Math.max(lo[i], num / den));
-        const d = nx - x[i];
-        if (Math.abs(d) > 1e-6) {
-          for (let k = 0; k < 3; k++) cur[k] += r[k] * d;
-          x[i] = nx;
-          moved += Math.abs(d);
-        }
+const W2 = [16, 16, 81];
+
+function lsSolve(rows, x, lo, hi, base, lam, goal, W = W2) {
+  const cur = [0, 0, 0];
+  rows.forEach((r, i) => r.forEach((v, k) => (cur[k] += v * x[i])));
+  for (let iter = 0; iter < 5000; iter++) {
+    let moved = 0;
+    for (let i = 0; i < x.length; i++) {
+      if (lo[i] === hi[i]) continue;
+      const r = rows[i];
+      let num = lam[i] * base[i];
+      let den = lam[i];
+      for (let k = 0; k < 3; k++) {
+        const rest = goal[k] - (cur[k] - r[k] * x[i]);
+        num += W[k] * r[k] * rest;
+        den += W[k] * r[k] * r[k];
       }
-      if (moved < 0.01) break;
+      if (den <= 0) continue;
+      const nx = Math.min(hi[i], Math.max(lo[i], num / den));
+      const d = nx - x[i];
+      if (Math.abs(d) > 1e-7) {
+        for (let k = 0; k < 3; k++) cur[k] += r[k] * d;
+        x[i] = nx;
+        moved += Math.abs(d);
+      }
     }
+    if (moved < 1e-4) break;
+  }
+  return cur;
+}
+
+// Porção máxima plausível numa refeição (g). Acima disso, a Nutri soma outro alimento.
+const MAX_PORTION = {
+  3: 400, 1: 400, 561: 300, 567: 300, 88: 450, 91: 450, 129: 400, 9013: 450, 533: 400, 64: 400, 577: 300, 9012: 300,
+  549: 300, 448: 400, 449: 400, 9006: 400, 584: 400, 9015: 300, 9008: 300, 222: 260, 231: 300, 239: 300, 182: 200,
+  225: 300, 207: 225, 410: 300, 408: 300, 377: 300, 346: 300, 351: 300, 371: 300, 9018: 280, 398: 300, 317: 280,
+  301: 300, 9009: 300, 488: 300, 52: 150, 53: 150, 9005: 120, 7: 100, 582: 500, 9001: 400, 9002: 400, 118: 300,
+  163: 200, 588: 40, 9004: 40,
+  589: 10, // castanha-do-pará: 1–2 por dia (selênio)
+};
+const MIN_PORTION = 15; // abaixo disso (ex.: 5 g de queijo) o ingrediente não faz sentido no prato
+
+// Erro da refeição em kcal (raiz da soma ponderada dos desvios).
+const misfit = (cur, goal) => Math.sqrt(W2.reduce((a, w, k) => a + w * (goal[k] - cur[k]) ** 2, 0));
+// Pesos relativos: cada macro conta pelo seu % de erro (carbo baixo do low carb também importa).
+const FLOOR = [8, 8, 4];
+const relWeights = (goal) => goal.map((g, k) => 1 / Math.max(g, FLOOR[k]) ** 2);
+// Erro relativo médio (0,05 = 5%).
+export const relMisfit = (cur, goal) => Math.sqrt(goal.reduce((a, g, k) => a + ((g - cur[k]) / Math.max(g, FLOOR[k])) ** 2, 0) / 3);
+
+// Complementos que a Nutri pode somar quando a receita sozinha não bate a meta.
+// [id, máximo em g]; leves = café/lanche/ceia, principais = almoço/jantar.
+const COMPLEMENTS = {
+  p: { light: [[9006, 300], [9008, 250], [9014, 200], [9003, 45], [9010, 100], [488, 150], [583, 45], [584, 250]], main: [[410, 200], [408, 200], [9008, 200], [584, 300], [9015, 250], [9012, 200]] },
+  c: { light: [[182, 200], [7, 80], [52, 100], [9005, 80], [222, 200]], main: [[3, 300], [88, 300], [561, 200], [1, 300], [129, 250]] },
+  f: { light: [[9004, 40], [588, 30], [163, 150], [9016, 20]], main: [[260, 20], [163, 150]] },
+};
+
+// Low carb: carboidrato complementar vem de legumes/frutas de baixo índice, não de mandioca/arroz.
+const LOWCARB_CARBS = { light: [[239, 200], [222, 150], [207, 150]], main: [[64, 250], [97, 150], [109, 150]] };
+
+function complementsFor(macro, slot, a, present) {
+  const ban = bannedFor(a);
+  const ex = new Set(a.excluded ?? []);
+  const kind = slot === 'almoco' || slot === 'jantar' ? 'main' : 'light';
+  const list = macro === 'c' && DIET_STYLES[a.style]?.carbPct ? LOWCARB_CARBS[kind] : COMPLEMENTS[macro][kind];
+  return list.filter(([id]) => !present.has(id) && !ex.has(id) && !foodTags(id).some((t) => ban.has(t)) && getFood(id));
+}
+
+/**
+ * Resolve as gramas de uma receita para a meta { p, c, f } da refeição.
+ * Se faltar muito de algum macro, soma até 2 complementos (marcados com add: true).
+ */
+export function solveMeal(templateItems, target, a = {}, slot = 'almoco') {
+  const goal = [target.p, target.c, target.f];
+  const W = relWeights(goal);
+  const build = (list) => {
+    const foods = list.map(([id]) => getFood(id));
+    const rows = foods.map((fd) => [fd.p / 100, fd.c / 100, fd.f / 100]);
+    const base = list.map((it) => it[2]);
+    const lo = [];
+    const hi = [];
+    list.forEach(([, role, b, mn, mx], i) => {
+      const kcal = foods[i].kcal * b / 100;
+      if (role === 'x') {
+        // complemento fixo (salada, fruta, bebida): pode diminuir até a metade se tiver calorias
+        lo.push(kcal >= 25 ? Math.max(Math.min(MIN_PORTION, b), b * 0.4) : b);
+        hi.push(b);
+      } else {
+        // pode encolher bastante (metas baixas de carbo/gordura), mas o item continua no prato
+        const oil = foods[i].kcal >= 500; // azeite, manteiga, castanhas: porções pequenas são normais
+        const floor = role === 'add' || oil ? 0 : Math.min(MIN_PORTION, b);
+        lo.push(role === 'add' ? 0 : Math.max(floor, Math.min(mn, b * (role === 'p' ? 0.5 : 0.3))));
+        const cap = MAX_PORTION[list[i][0]] ?? Infinity;
+        hi.push(Math.max(lo[i], Math.min(cap, Math.max(mx, b * (role === 'add' ? 1 : 4), oil && role === 'f' ? 30 : 0))));
+      }
+    });
+    // regularização bem fraca, na mesma escala do erro de cada alimento: só desempata
+    // (2% da "força" do alimento sobre os macros puxando para a quantidade da receita)
+    const lam = rows.map((r) => 0.02 * r.reduce((acc, v, k) => acc + W[k] * v * v, 0) + 1e-12);
+    return { rows, base, lo, hi, lam };
+  };
+  const solveList = (list) => {
+    const m = build(list);
+    const x = m.base.map((b, i) => Math.min(m.hi[i], Math.max(m.lo[i], b)));
+    const cur = lsSolve(m.rows, x, m.lo, m.hi, m.base, m.lam, goal, W);
+    return { list, x, cur, err: relMisfit(cur, goal), m };
   };
 
-  run();
-  // medidas caseiras (ovos, pães, frutas…) viram unidades inteiras e ficam fixas
+  let best = solveList(templateItems.map((it) => [...it]));
+  for (let round = 0; round < 2; round++) {
+    // macro com maior falta relativa (só vale complementar se faltar de verdade)
+    const def = [0, 1, 2].map((k) => (goal[k] - best.cur[k]) / Math.max(goal[k], FLOOR[k]));
+    const k = def.indexOf(Math.max(...def));
+    if (def[k] <= 0.04 || goal[k] - best.cur[k] < [3, 5, 2][k]) break;
+    const macro = ['p', 'c', 'f'][k];
+    const present = new Set(best.list.map((it) => it[0]));
+    let improved = null;
+    // refeições grandes (ganho de massa, low carb com muita gordura) aceitam porções maiores
+    const scale = Math.min(2.5, Math.max(1, (goal[0] * 4 + goal[1] * 4 + goal[2] * 9) / 650));
+    for (const [id, mx0] of complementsFor(macro, slot, a, present).slice(0, 5)) {
+      const mx = Math.round(mx0 * scale);
+      const r = solveList([...best.list, [id, 'add', 0, 0, mx]]);
+      // complemento de 10 g de tapioca não faz sentido: só vale com porção de verdade
+      const g = r.x[r.x.length - 1];
+      if (g < (mx <= 45 ? 8 : 25)) continue;
+      if (!improved || r.err < improved.err) improved = r;
+    }
+    if (!improved || improved.err > best.err * 0.8) break;
+    best = improved;
+  }
+
+  // medidas caseiras (ovos, pães, frutas…) viram unidades inteiras; o resto se reajusta
+  const { list, x, m } = best;
   let anyUnit = false;
-  items.forEach(([id], i) => {
+  list.forEach(([id, role], i) => {
     const u = HOUSE_UNITS[id];
-    if (!u || fixed[i]) return;
-    const n = Math.max(lo[i] > 0 ? 1 : 0, Math.round(x[i] / u[0]));
-    x[i] = Math.min(hi[i], n * u[0]);
-    fixed[i] = true;
+    if (!u || m.lo[i] === m.hi[i]) return;
+    const n = Math.max(m.lo[i] > 0 || role === 'add' ? 1 : 0, Math.round(x[i] / u[0]));
+    m.lo[i] = m.hi[i] = x[i] = n * u[0];
     anyUnit = true;
   });
-  if (anyUnit) run();
-  return items.map(([id], i) => {
-    const step = hi[i] <= 40 ? 5 : 10;
-    const g = HOUSE_UNITS[id] ? x[i] : Math.round(x[i] / step) * step;
-    return { foodId: id, g: Math.max(0, Math.round(g)) };
-  }).filter((it) => it.g > 0);
+  if (anyUnit) lsSolve(m.rows, x, m.lo, m.hi, m.base, m.lam, goal, W);
+  return list
+    .map(([id, role], i) => {
+      // azeite/castanhas de 1 em 1 g, porções médias de 5 em 5, grandes de 10 em 10
+      const step = m.hi[i] <= 45 ? 1 : m.hi[i] <= 160 ? 5 : 10;
+      const g = HOUSE_UNITS[id] ? x[i] : Math.round(x[i] / step) * step;
+      return { foodId: id, g: Math.max(0, Math.round(g)), ...(role === 'add' ? { add: true } : {}) };
+    })
+    .filter((it) => it.g >= (it.add ? 5 : 1));
 }
+
+// Compatível com o uso anterior (sem complementos).
+export function solveTemplate(items, target) {
+  return solveMeal(items, target, { excluded: [...new Set(Object.values(COMPLEMENTS).flatMap((g) => [...g.light, ...g.main].map(([id]) => id)))] });
+}
+
+const mealMisfit = (items, tgt) => {
+  const t = sumMacros(items);
+  return relMisfit([t.p, t.c, t.f], [tgt.p, tgt.c, tgt.f]);
+};
 
 export function houseMeasure(foodId, g) {
   const u = HOUSE_UNITS[foodId];
@@ -463,19 +573,33 @@ export function generatePlan(baseTarget, rawAnswers, seed = Date.now()) {
         sc: scoreTemplate(t, answers, slot, rand, key === tm.pre || key === tm.post) - (used.get(t.id) ?? 0) * 4 - (usedProt.get(mainProteinOf(t)) ?? 0) * (slot === 'almoco' || slot === 'jantar' ? 3 : 1),
       }))
       .sort((a, b) => b.sc - a.sc);
-    const pool = pickOptions(scored);
+    // as melhores por estilo/gosto são testadas na meta; as que não fecham os macros caem
+    const sh0 = shares[idx];
+    const tgt0 = { p: target.protein * sh0.p, c: target.carbs * sh0.c, f: target.fat * sh0.f };
+    let ranked = scored.slice(0, 12).map((x) => {
+      const items = solveMeal(x.t.items, tgt0, answers, slot);
+      const rel = mealMisfit(items, tgt0);
+      const adds = items.filter((it) => it.add).length;
+      return { t: x.t, rel, sc: x.sc - rel * 40 - adds * 0.8 };
+    }).sort((p, q) => q.sc - p.sc);
+    // opções que não fecham os macros (>12%) só entram se faltar alternativa
+    const good = ranked.filter((x) => x.rel <= 0.12);
+    if (good.length >= 3) ranked = good;
+    else ranked = [...good, ...ranked.filter((x) => x.rel > 0.12 && x.rel <= 0.2).sort((p, q) => p.rel - q.rel)].slice(0, Math.max(2, good.length));
+    if (!ranked.length) ranked = scored.slice(0, 1);
+    const pool = pickOptions(ranked);
     pool.forEach((t, i) => {
       used.set(t.id, (used.get(t.id) ?? 0) + (i === 0 ? 2 : 1));
       if (i === 0) usedProt.set(mainProteinOf(t), (usedProt.get(mainProteinOf(t)) ?? 0) + 1);
     });
     const sh = shares[idx];
     const tgt = { p: target.protein * sh.p, c: target.carbs * sh.c, f: target.fat * sh.f };
-    const options = pool.map((t) => ({ templateId: t.id, name: t.name, template: t, items: solveTemplate(t.items, tgt) }));
-    return { key, type, tgt, options, choice: 0 };
+    const options = pool.map((t) => ({ templateId: t.id, name: t.name, template: t, items: solveMeal(t.items, tgt, answers, slot) }));
+    return { key, slot, type, tgt, options, choice: 0 };
   });
 
   // 2ª passada: o que faltou/sobrou no dia vai para as refeições com margem
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 4; pass++) {
     const tot = sumMacros(meals.flatMap((m) => m.options[m.choice]?.items ?? []));
     const miss = { p: target.protein - tot.p, c: target.carbs - tot.c, f: target.fat - tot.f };
     const cTake = shares.map((sh) => (lightDinner && sh.key === 'jantar' ? 0 : sh.c));
@@ -487,7 +611,7 @@ export function generatePlan(baseTarget, rawAnswers, seed = Date.now()) {
         c: Math.max(0, m.tgt.c + (miss.c * cTake[i]) / cSum),
         f: Math.max(0, m.tgt.f + miss.f * sh.f),
       };
-      m.options = m.options.map((o) => ({ ...o, items: solveTemplate(o.template.items, m.tgt) }));
+      m.options = m.options.map((o) => ({ ...o, items: solveMeal(o.template.items, m.tgt, answers, m.slot) }));
     });
   }
 
@@ -508,7 +632,7 @@ export function generatePlan(baseTarget, rawAnswers, seed = Date.now()) {
     };
   });
   const totals = sumMacros(out.flatMap((m) => m.items));
-  const plan = { version: 3, createdAt: Date.now(), seed, answers: rawAnswers, baseTarget, target, meals: out, totals };
+  const plan = { version: 3, solver: 2, createdAt: Date.now(), seed, answers: rawAnswers, baseTarget, target, meals: out, totals };
   plan.notes = planNotes(plan, answers, { lightDinner, tm });
   return plan;
 }

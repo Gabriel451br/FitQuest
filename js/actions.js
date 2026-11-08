@@ -6,6 +6,8 @@ import { dateKey, uid } from './util.js';
 import { ACTIVITIES, sessionType } from './cardio.js';
 import { GPS_TYPES } from './gps.js';
 import { routineFromSession } from './training.js';
+import { activeProgram, blockProgress, deloadSets } from './programs.js';
+import { instantiateProgram } from './data/programs.js';
 
 export function addWater(date, ml) {
   update((s) => {
@@ -46,9 +48,28 @@ function WeighIn({ date, initial, close }) {
 
 // Próximo treino da rotação: o seguinte ao último concluído.
 // Próximo treino da rotação de uma categoria (musculação por padrão).
+// Última observação registrada para o exercício (continua no próximo treino).
+export function lastExerciseNote(s, exId) {
+  const list = finishedSessions(s);
+  for (let i = list.length - 1; i >= 0; i--) {
+    const e = list[i].exercises?.find((y) => y.exId === exId && y.note?.trim());
+    if (e) return e.note;
+  }
+  return '';
+}
+
+// Treinos "soltos" (fora de pastas e do arquivo) entram no rodízio da rotina.
+export const inRotation = (w) => !w.folderId;
+
 export function nextWorkout(s, type = 'strength') {
-  const list = s.workouts.filter((w) => (w.type ?? 'strength') === type);
-  if (!list.length) return type === 'strength' ? s.workouts[0] ?? null : null;
+  if (type === 'strength') {
+    const p = activeProgram(s);
+    const bp = p ? blockProgress(s, p) : null;
+    const w = bp && !bp.finished && s.workouts.find((x) => x.id === bp.nextWorkoutId);
+    if (w) return w;
+  }
+  const list = s.workouts.filter((w) => (w.type ?? 'strength') === type && inRotation(w));
+  if (!list.length) return type === 'strength' ? s.workouts.find((w) => (w.type ?? 'strength') === 'strength' && !w.folderId) ?? null : null;
   const last = finishedSessions(s).filter((x) => x.workoutId && sessionType(x) === type).pop();
   if (!last) return list[0];
   const i = list.findIndex((w) => w.id === last.workoutId);
@@ -78,8 +99,10 @@ export function moveWorkout(id, dir) {
     const i = st.workouts.findIndex((w) => w.id === id);
     if (i < 0) return;
     const type = st.workouts[i].type ?? 'strength';
+    const folder = st.workouts[i].folderId ?? null;
+    const same = (w) => (w.type ?? 'strength') === type && (w.folderId ?? null) === folder;
     let j = i + dir;
-    while (j >= 0 && j < st.workouts.length && (st.workouts[j].type ?? 'strength') !== type) j += dir;
+    while (j >= 0 && j < st.workouts.length && !same(st.workouts[j])) j += dir;
     if (j < 0 || j >= st.workouts.length) return;
     [st.workouts[i], st.workouts[j]] = [st.workouts[j], st.workouts[i]];
   });
@@ -111,6 +134,12 @@ export function startSession(workout, date = dateKey()) {
     location.hash = '#/treino/sessao';
     return;
   }
+  // treino do bloco atual do programa ativo: marca bloco/semana e aplica o deload
+  const prog = activeProgram(s);
+  const bp = prog ? blockProgress(s, prog) : null;
+  const inBlock = bp && workout && bp.block.workoutIds.includes(workout.id);
+  const deload = inBlock && bp.guide.deload;
+  const prevSameWorkout = workout ? finishedSessions(s).filter((x) => x.workoutId === workout.id && x.note).pop() : null;
   update((st) => {
     st.sessions.push({
       id,
@@ -120,15 +149,25 @@ export function startSession(workout, date = dateKey()) {
       name: workout?.name ?? 'Treino livre',
       startedAt: Date.now(),
       finishedAt: null,
-      exercises: (workout?.exercises ?? []).map((e) => ({
-        exId: e.exId,
-        target: e.reps,
-        targetRpe: e.targetRpe ?? null,
-        targetPct: e.targetPct ?? null,
-        targetKg: e.targetKg ?? null,
-        rest: e.rest ?? 90,
-        sets: Array.from({ length: e.sets || 3 }, () => ({ kg: e.targetKg ?? null, reps: null, rpe: null, pct: e.targetPct ?? null, done: false, kind: 'work', auto: { kg: true, pct: true } })),
-      })),
+      // observações do treino continuam de uma sessão para a outra
+      note: prevSameWorkout?.note ?? '',
+      ...(inBlock ? { programId: prog.id, blockId: bp.block.id, week: Math.min(bp.week, bp.weeks), deload: !!deload } : {}),
+      exercises: (workout?.exercises ?? []).map((e) => {
+        const n = deload ? deloadSets(e.sets || 3) : e.sets || 3;
+        const topset = (e.prog ?? (inBlock ? bp.block.progression : null)) === 'topset' && n >= 2;
+        return {
+          exId: e.exId,
+          target: e.reps,
+          targetRpe: e.targetRpe ?? null,
+          targetPct: e.targetPct ?? null,
+          targetKg: e.targetKg ?? null,
+          rest: e.rest ?? 90,
+          cue: e.note ?? '',
+          prog: e.prog ?? (inBlock ? bp.block.progression : null),
+          note: lastExerciseNote(s, e.exId),
+          sets: Array.from({ length: n }, (_, i) => ({ kg: e.targetKg ?? null, reps: null, rpe: null, pct: e.targetPct ?? null, done: false, kind: topset ? (i === 0 ? 'top' : 'backoff') : 'work', auto: { kg: true, pct: true } })),
+        };
+      }),
     });
     st.activeSessionId = id;
   });
@@ -188,4 +227,89 @@ function SaveAsWorkout({ ses, close }) {
       <p class="tiny muted">Dá para ajustar depois em Treino → ✎ Editar.</p>
     <//>
   `;
+}
+
+// --- Pastas e arquivo de treinos ----------------------------------------------------------
+
+export const ARCHIVE = 'archive';
+
+export function createFolder(name) {
+  const id = uid();
+  update((st) => { (st.workoutFolders ??= []).push({ id, name: name.trim() }); });
+  return id;
+}
+
+export function moveToFolder(workoutId, folderId) {
+  update((st) => {
+    const w = st.workouts.find((x) => x.id === workoutId);
+    if (!w) return;
+    if (folderId) w.folderId = folderId;
+    else delete w.folderId;
+  });
+}
+
+export async function deleteFolder(folder) {
+  const ok = await confirmDialog(`Apagar a pasta "${folder.name}"? Os treinos dela voltam para "Meus treinos".`, { ok: 'Apagar pasta' });
+  if (!ok) return false;
+  update((st) => {
+    st.workoutFolders = (st.workoutFolders ?? []).filter((f) => f.id !== folder.id);
+    st.workouts.forEach((w) => { if (w.folderId === folder.id) delete w.folderId; });
+  });
+  return true;
+}
+
+// --- Programas em blocos ------------------------------------------------------------------
+
+export function installProgram(key) {
+  const { folder, workouts, program } = instantiateProgram(key, uid);
+  update((st) => {
+    (st.workoutFolders ??= []).push(folder);
+    st.workouts.push(...workouts);
+    (st.programs ??= []).push(program);
+  });
+  return program.id;
+}
+
+export function followProgram(id) {
+  update((st) => {
+    const p = st.programs.find((x) => x.id === id);
+    if (!p) return;
+    st.activeProgramId = id;
+    if (p.status !== 'active') {
+      p.status = 'active';
+      p.blockStartedAt ??= Date.now();
+    }
+  });
+}
+
+export function pauseProgram() {
+  update((st) => { st.activeProgramId = null; });
+}
+
+// Conclui o bloco atual e começa o próximo (o histórico guarda início/fim de cada bloco).
+export function advanceBlock(id) {
+  update((st) => {
+    const p = st.programs.find((x) => x.id === id);
+    if (!p) return;
+    const b = p.blocks[p.blockIndex];
+    (p.history ??= []).push({ blockId: b.id, name: b.name, startedAt: p.blockStartedAt, endedAt: Date.now() });
+    if (p.blockIndex + 1 >= p.blocks.length) {
+      p.status = 'done';
+      if (st.activeProgramId === p.id) st.activeProgramId = null;
+    } else {
+      p.blockIndex += 1;
+      p.blockStartedAt = Date.now();
+    }
+  });
+}
+
+export function restartBlock(id, index) {
+  update((st) => {
+    const p = st.programs.find((x) => x.id === id);
+    if (!p) return;
+    p.blockIndex = index;
+    p.blockStartedAt = Date.now();
+    p.status = 'active';
+    st.activeProgramId = id;
+  });
 }

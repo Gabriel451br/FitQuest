@@ -96,6 +96,22 @@ const RAW = [
   ['elevacao-pernas', 'Elevação de pernas', 'abdomen', []],
   ['prancha', 'Prancha (segundos)', 'abdomen', []],
   ['roda', 'Roda abdominal', 'abdomen', []],
+
+  // força / atlético / prehab (Dad Strength e afins)
+  ['supino-pausado', 'Supino pausado (2–3 s no peito)', 'peito', ['triceps', 'ombros']],
+  ['chest-press', 'Chest press (máquina)', 'peito', ['triceps', 'ombros']],
+  ['barra-neutra', 'Barra fixa (pegada neutra)', 'costas', ['biceps', 'antebraco']],
+  ['puxada-neutra', 'Puxada neutra (polia)', 'costas', ['biceps']],
+  ['remada-apoio', 'Remada com apoio no peito', 'costas', ['biceps', 'trapezio']],
+  ['power-clean', 'Power clean / clean pull', 'posterior', ['trapezio', 'gluteos', 'quadriceps']],
+  ['zercher', 'Zercher squat', 'quadriceps', ['gluteos', 'abdomen']],
+  ['rosca-inversa', 'Rosca inversa (barra EZ)', 'antebraco', ['biceps']],
+  ['plate-pinch', 'Plate pinch / pegada de kimono (s)', 'antebraco', []],
+  ['spanish-squat', 'Spanish squat (prehab joelho)', 'quadriceps', []],
+  ['step-down', 'Step-down baixo (prehab joelho)', 'quadriceps', ['gluteos']],
+  ['prehab-joelho', 'Prehab de joelho (2 exercícios, min)', 'quadriceps', []],
+  ['rdl-unilateral', 'RDL unilateral leve', 'posterior', ['gluteos']],
+  ['pallof', 'Pallof press (anti-rotação)', 'abdomen', []],
 ];
 
 export const BASE_EXERCISES = RAW.map(([id, name, primary, secondary]) => ({ id, name, primary, secondary }));

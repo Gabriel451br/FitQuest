@@ -1,6 +1,7 @@
 // Gamificação derivada dos dados: XP, nível, sequência, missões e conquistas.
 // Nada é acumulado em separado — editar/apagar um registro recalcula tudo,
 // então não existe XP duplicado nem "farm" por desfazer/refazer.
+import { rankFor } from './ranks.js';
 import { sumMacros } from './foods.js';
 import { targets, finishedSessions, MEALS } from './selectors.js';
 import { computePRs, sessionStats, weeklySets } from './training.js';
@@ -50,6 +51,12 @@ export const TITLES = [
 
 export function xpForLevel(level) {
   return Math.round(150 * (level - 1) ** 1.6);
+}
+
+// Título do nível = graduação (faixa/patente) no estilo escolhido.
+function withRank(lv, style) {
+  const rank = rankFor(lv.level, style);
+  return { ...lv, rank, title: rank.full };
 }
 
 export function levelInfo(totalXp) {
@@ -253,7 +260,7 @@ export function computeGame(s, today = dateKey()) {
 
   const result = {
     totalXp,
-    level: levelInfo(totalXp),
+    level: withRank(levelInfo(totalXp), s.settings?.rankStyle ?? 'faixa'),
     streak: currentStreak,
     bestStreak,
     days,

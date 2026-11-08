@@ -5,6 +5,8 @@ import { cloudEnabled, useAuth } from './cloud.js';
 import { AuthView, Splash } from './views/auth.js';
 import { computeGame } from './game.js';
 import { Icon, toast } from './ui.js';
+import { RankBadge } from './views/rank.js';
+import { rankChange } from './ranks.js';
 import { dateKey } from './util.js';
 import { go } from './nav.js';
 import { Onboarding } from './views/onboarding.js';
@@ -63,7 +65,11 @@ function useXpFeedback(game) {
     if (!p || p.epoch !== getEpoch()) return;
     const gained = game.totalXp - p.xp;
     if (gained > 0) toast(`+${gained} XP`, 'xp');
-    if (game.level.level > p.level) setTimeout(() => toast(`LEVEL UP → LV ${game.level.level} · ${game.level.title.toUpperCase()}`, 'xp'), 400);
+    if (game.level.level > p.level) {
+      const ch = rankChange(p.level, game.level.level, getState().settings?.rankStyle ?? 'faixa');
+      const msg = ch?.promotion ? `🎖️ PROMOÇÃO → ${ch.rank.name.toUpperCase()}` : ch ? `NOVO GRAU → ${ch.rank.full.toUpperCase()}` : `LEVEL UP → LV ${game.level.level}`;
+      setTimeout(() => toast(msg, 'xp'), 400);
+    }
     const newAch = game.achievements.filter((a) => a.unlocked && !p.ach.includes(a.id));
     newAch.forEach((a, i) => setTimeout(() => toast(`CONQUISTA: ${a.name.toUpperCase()}`), 800 + i * 400));
   }, [game.totalXp]);
@@ -93,6 +99,7 @@ function TopBar({ game }) {
         <div class="spacer"></div>
         ${!online && html`<span class="net-chip" title="Sem internet: tudo continua salvo no aparelho e sincroniza depois">OFFLINE</span>`}
         <button class="lvl-chip" onClick=${() => go('jornada')} aria-label=${`Nível ${lv.level}`} style="cursor:pointer">
+          <${RankBadge} level=${lv.level} size="sm" />
           <span class="lv">LV ${lv.level}</span>
           <span class="track"><i style=${`width:${Math.round(lv.pct * 100)}%`}></i></span>
         </button>

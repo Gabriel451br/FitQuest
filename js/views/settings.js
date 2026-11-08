@@ -85,6 +85,9 @@ export function SettingsView({ s }) {
       <section class="card stack-sm">
         <h3 class="up">Aparência</h3>
         <${Seg} value=${s.settings.theme} onChange=${setS('theme')} options=${[['auto', 'Auto'], ['light', 'Claro'], ['dark', 'Escuro']]} />
+        <${Field} label="Graduações do nível">
+          <${Seg} value=${s.settings.rankStyle ?? 'faixa'} onChange=${setS('rankStyle')} options=${[['faixa', 'Faixas de Jiu-Jitsu'], ['militar', 'Patentes militares']]} />
+        <//>
       </section>
 
       <section class="card stack-sm">

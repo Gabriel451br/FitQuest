@@ -623,3 +623,45 @@ button:disabled { opacity: .35; pointer-events: none; }
 details.recipe { margin-top: 8px; border-top: 1.5px dashed color-mix(in srgb, var(--line) 35%, transparent); padding-top: 8px; }
 details.recipe summary { cursor: pointer; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
 details.recipe ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.4; }
+
+/* ---------- Programas em blocos e pastas ---------- */
+.program-card { border-left-width: 8px; border-left-color: var(--accent); }
+.week-pips { display: flex; gap: 4px; margin-top: 8px; }
+.week-pips i { flex: 1; height: 10px; border: 1.5px solid var(--line); background: var(--surface); }
+.week-pips i.done { background: var(--ink); }
+.week-pips i.cur { background: var(--accent); }
+.week-pips i.deload { border-style: dashed; }
+.week-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.week-list .wk { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 5px 8px; border: 1.5px solid var(--line); }
+.week-list .wk.done { background: #0b0b0b; color: var(--accent); border-color: #0b0b0b; }
+.week-list .wk.next { box-shadow: inset 0 -4px 0 var(--accent); }
+.block-cur { border-left-width: 8px; border-left-color: var(--accent); }
+.block-banner { border: var(--bw) solid #0b0b0b; background: #0b0b0b; color: #f1efe8; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; border-left: 8px solid var(--accent); }
+.block-banner.deload { border-left-color: #ff9f1a; }
+.ex-cue { display: flex; gap: 8px; align-items: flex-start; text-align: left; width: 100%; padding: 8px 12px; border: 0; border-top: 1.5px dashed color-mix(in srgb, var(--line) 30%, transparent); background: transparent; color: var(--ink-2); font-family: inherit; font-size: 13px; line-height: 1.35; cursor: pointer; }
+.ex-cue .tag { flex: none; }
+.clamp1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.folder { border: var(--bw) solid var(--line); background: var(--surface); }
+.folder-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; border: 0; background: transparent; color: var(--ink); font-family: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.folder .list { border-left: 0; border-right: 0; border-bottom: 0; }
+
+/* ---------- Graduações: faixas e patentes ---------- */
+.belt { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; flex: none; }
+.belt .belt-body { display: block; width: 34px; height: 12px; background: var(--belt); border: 1.5px solid #0b0b0b; border-right: 0; }
+.belt .belt-tip { display: flex; gap: 2px; align-items: stretch; justify-content: center; width: 22px; height: 12px; padding: 0 2px; background: var(--tip); border: 1.5px solid #0b0b0b; }
+.belt .belt-tip s { display: block; width: 3px; background: #f4f2ea; }
+.belt.sm .belt-body { width: 20px; height: 9px; }
+.belt.sm .belt-tip { width: 14px; height: 9px; gap: 1px; padding: 0 1px; }
+.belt.sm .belt-tip s { width: 2px; }
+.belt.lg .belt-body { width: 120px; height: 26px; }
+.belt.lg .belt-tip { width: 64px; height: 26px; gap: 5px; padding: 0 6px; }
+.belt.lg .belt-tip s { width: 7px; }
+.belt em, .rank-mil em { font-style: normal; font-family: var(--mono); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.rank-mil { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; flex: none; }
+.rank-mil b { display: inline-grid; place-items: center; min-width: 22px; padding: 1px 5px; background: #0b0b0b; color: #e8c547; border: 1.5px solid #e8c547; font-size: 11px; line-height: 1.2; letter-spacing: -1px; }
+.rank-mil.sm b { font-size: 9px; min-width: 16px; padding: 0 3px; }
+.rank-mil.lg b { font-size: 26px; padding: 6px 12px; letter-spacing: 0; }
+.rank-ladder { display: flex; flex-direction: column; }
+.rank-ladder .li.cur { background: #0b0b0b; color: #f1efe8; --ink: #f1efe8; --ink-2: #a3a199; box-shadow: inset 6px 0 0 var(--accent); }
+.rank-ladder .li.locked { opacity: 0.5; }
+.rank-ladder .li.cur .belt-body, .rank-ladder .li.cur .belt-tip, .block-banner .belt-tip { border-color: #f1efe8; }

@@ -1,4 +1,6 @@
 // SOCIAL: feed de treinos dos amigos, ranking, amigos e duelos (comparação).
+import { RankBadge, rankStyle } from './rank.js';
+import { rankFor } from '../ranks.js';
 import { html, useState, useEffect, useMemo } from '../lib.js';
 import { update, getState, exerciseById } from '../store.js';
 import { cloudEnabled, useAuth, currentUserId, currentUsername } from '../cloud.js';
@@ -12,7 +14,7 @@ import { Icon, openModal, Sheet, Seg, toast, confirmDialog, Empty, Stat } from '
 import { num, fmtDate, dateKey, weekStart, diffDays } from '../util.js';
 
 const METRICS = [
-  ['xp', 'XP total', (p) => p.xp, ''],
+  ['xp', 'Graduação', (p) => p.xp, ' XP'],
   ['week_xp', 'XP semana', (p) => (isThisWeek(p) ? p.week_xp : 0), '', true],
   ['week_workouts', 'Treinos sem.', (p) => (isThisWeek(p) ? p.week_workouts : 0), '', true],
   ['week_volume', 'Volume sem.', (p) => (isThisWeek(p) ? p.week_volume : 0), ' kg', true],
@@ -259,7 +261,7 @@ function RankingTab() {
                 <${Avatar} name=${p.username} level=${p.level} size=${34} />
                 <div class="grow" style="min-width:0">
                   <div class="t">${p.display_name || p.username}${p.user_id === me ? ' (você)' : ''}</div>
-                  <div class="s mono">@${p.username} · LV ${p.level}</div>
+                  <div class="s mono row" style="gap:6px">@${p.username} · <${RankBadge} level=${p.level} size="sm" /> ${rankFor(p.level, rankStyle()).short}</div>
                 </div>
               </button>
               <b class="mono">${num(v, metric.includes('km') ? 1 : 0)}${m[3]}</b>
@@ -343,7 +345,7 @@ function FriendsTab() {
           ${friends.map((f) => html`
             <button class="li btnlike" key=${f.other_id} onClick=${() => openProfile(f.other_id)}>
               <${Avatar} name=${f.username} level=${f.level} size=${34} />
-              <div class="grow"><div class="t">${f.display_name || f.username}</div><div class="s mono">@${f.username} · LV ${f.level}</div></div>
+              <div class="grow"><div class="t">${f.display_name || f.username}</div><div class="s mono row" style="gap:6px">@${f.username} · <${RankBadge} level=${f.level} size="sm" /> ${rankFor(f.level, rankStyle()).short}</div></div>
               <span class="tag">Duelo ⚔</span>
             </button>
           `)}
@@ -419,7 +421,7 @@ function ProfileSheet({ userId, close }) {
           <${Avatar} name=${p.username} level=${p.level} size=${56} />
           <div class="grow">
             <h2 style="font-size:20px">${title}</h2>
-            <div class="mono small muted">@${p.username} · LV ${p.level} ${p.title}</div>
+            <div class="mono small muted row" style="gap:6px">@${p.username} · LV ${p.level} · <${RankBadge} level=${p.level} size="sm" /> ${rankFor(p.level, rankStyle()).full}</div>
           </div>
         </div>
         <div class="grid-4">

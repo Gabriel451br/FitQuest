@@ -10,6 +10,8 @@ import { startSession, nextWorkout, deleteSession, deleteWorkout, moveWorkout, o
 import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
 import { CardioHome, CardioLive } from './cardio.js';
 import { LockPrompt } from './lockprompt.js';
+import { ProgramCard, ProgramsTab, FoldersSection, openMoveSheet } from './programs.js';
+import { suggestProgression, loadStep, PROGRESSIONS, BLOCK_GOALS, weekGuide } from '../programs.js';
 import '../lockscreen.js';
 import { go } from '../nav.js';
 import { alarm, prime, keepAwake } from '../sound.js';
@@ -49,11 +51,12 @@ function TrainingHome({ s, today }) {
       ${cat === 'strength'
         ? html`
           <div class="tabs">
-            ${[['rotina', 'Rotina'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume'], ['rm', 'RM']].map(([k, l]) => html`
+            ${[['rotina', 'Rotina'], ['blocos', 'Blocos'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume'], ['rm', 'RM']].map(([k, l]) => html`
               <button class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}>${l}</button>
             `)}
           </div>
           ${tab === 'rotina' && html`<${RoutineTab} s=${s} today=${today} />`}
+          ${tab === 'blocos' && html`<${ProgramsTab} s=${s} />`}
           ${tab === 'historico' && html`<${HistoryTab} s=${s} />`}
           ${tab === 'progresso' && html`<${ProgressTab} s=${s} />`}
           ${tab === 'volume' && html`<${VolumeTab} s=${s} today=${today} />`}
@@ -69,11 +72,28 @@ function TrainingHome({ s, today }) {
 function RoutineTab({ s, today }) {
   const [reorder, setReorder] = useState(false);
   const nw = nextWorkout(s);
-  const workouts = s.workouts.filter((w) => (w.type ?? 'strength') === 'strength');
-  if (!workouts.length) {
+  const all = s.workouts.filter((w) => (w.type ?? 'strength') === 'strength');
+  const workouts = all.filter((w) => !w.folderId);
+  const row = (w, wi = -1, list = []) => html`
+    <div class="li" key=${w.id}>
+      <div class="grow">
+        <div class="row"><span class="t">${w.name}</span>${nw?.id === w.id && html`<span class="tag acc">Próximo</span>`}</div>
+        <div class="s">${w.exercises.length} exercícios · ${w.exercises.reduce((a, e) => a + (e.sets || 0), 0)} séries · ${[...new Set(w.exercises.map((e) => MUSCLES[exerciseById(s, e.exId).primary]))].slice(0, 4).join(', ')}</div>
+      </div>
+      ${reorder && wi >= 0
+        ? html`
+          <button class="icon-btn" onClick=${() => moveWorkout(w.id, -1)} disabled=${wi === 0} aria-label="Subir">↑</button>
+          <button class="icon-btn" onClick=${() => moveWorkout(w.id, 1)} disabled=${wi === list.length - 1} aria-label="Descer">↓</button>`
+        : html`
+          <button class="icon-btn" onClick=${() => editWorkout(s, w)} aria-label="Editar"><${Icon} name="edit" /></button>
+          <button class="icon-btn" onClick=${() => openMoveSheet(w)} aria-label="Mover para pasta ou arquivar" title="Pasta / arquivar">📁</button>
+          <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" /><span class="hide-xs">Iniciar</span></button>`}
+    </div>
+  `;
+  if (!all.length && !(s.programs ?? []).length) {
     return html`
       <div class="stack">
-        <${Empty} title="Sem rotina ainda" text="Comece com um modelo pronto ou monte seus treinos do zero." action=${html`<button class="btn primary" onClick=${() => editWorkout(s, null)}><${Icon} name="plus" />Criar treino</button>`} />
+        <${Empty} title="Sem rotina ainda" text="Comece com um modelo pronto, um programa em blocos ou monte seus treinos do zero." action=${html`<button class="btn primary" onClick=${() => editWorkout(s, null)}><${Icon} name="plus" />Criar treino</button>`} />
         <h3 class="up">Modelos prontos</h3>
         <div class="choice-grid">
           ${Object.entries(SPLIT_TEMPLATES).map(([k, t]) => html`
@@ -88,29 +108,17 @@ function RoutineTab({ s, today }) {
   }
   return html`
     <div class="stack">
-      <div class="list">
-        ${workouts.map((w, wi) => html`
-          <div class="li" key=${w.id}>
-            <div class="grow">
-              <div class="row"><span class="t">${w.name}</span>${nw?.id === w.id && html`<span class="tag acc">Próximo</span>`}</div>
-              <div class="s">${w.exercises.length} exercícios · ${w.exercises.reduce((a, e) => a + (e.sets || 0), 0)} séries · ${[...new Set(w.exercises.map((e) => MUSCLES[exerciseById(s, e.exId).primary]))].slice(0, 4).join(', ')}</div>
-            </div>
-            ${reorder
-              ? html`
-                <button class="icon-btn" onClick=${() => moveWorkout(w.id, -1)} disabled=${wi === 0} aria-label="Subir">↑</button>
-                <button class="icon-btn" onClick=${() => moveWorkout(w.id, 1)} disabled=${wi === workouts.length - 1} aria-label="Descer">↓</button>`
-              : html`
-                <button class="icon-btn" onClick=${() => editWorkout(s, w)} aria-label="Editar"><${Icon} name="edit" /></button>
-                <button class="icon-btn" onClick=${() => deleteWorkout(w)} aria-label="Excluir treino"><${Icon} name="trash" /></button>
-                <button class="btn sm dark" onClick=${() => startSession(w, today)}><${Icon} name="play" /><span class="hide-xs">Iniciar</span></button>`}
-          </div>
-        `)}
-      </div>
+      <${ProgramCard} s=${s} today=${today} />
+      <div class="section-head"><h3 class="up">Meus treinos</h3></div>
+      ${workouts.length
+        ? html`<div class="list">${workouts.map((w, wi) => row(w, wi, workouts))}</div>`
+        : html`<p class="tiny muted">Nenhum treino solto. Os treinos de programas ficam nas pastas abaixo.</p>`}
       <div class="row wrap">
         ${workouts.length > 1 && html`<button class=${`btn ${reorder ? 'primary' : ''}`} onClick=${() => setReorder(!reorder)}>${reorder ? 'Concluir' : '↕ Reordenar'}</button>`}
         <button class="btn" onClick=${() => editWorkout(s, null)}><${Icon} name="plus" />Novo treino</button>
         <button class="btn ghost" onClick=${() => startSession(null, today)}>Treino livre</button>
       </div>
+      <${FoldersSection} s=${s} renderRow=${(w) => row(w)} />
     </div>
   `;
 }
@@ -415,6 +423,7 @@ function SessionView({ s, ses }) {
       </div>
 
       ${!editing && html`<${LockPrompt} s=${s} />`}
+      ${ses.programId && html`<${SessionBlockBanner} s=${s} ses=${ses} />`}
 
       ${editing && html`
         <${Field} label="Data">
@@ -429,7 +438,7 @@ function SessionView({ s, ses }) {
       </button>
 
       <${Field} label="Observações do treino">
-        <textarea class="input" rows="2" placeholder="Como foi o treino? Energia, sono, dores…" value=${ses.note ?? ''} onInput=${(e) => patchSession(ses.id, (x) => (x.note = e.target.value))}></textarea>
+        <textarea class="input" rows="2" placeholder="Como foi o treino? Energia, sono, joelho… (fica para o próximo deste treino)" value=${ses.note ?? ''} onInput=${(e) => patchSession(ses.id, (x) => (x.note = e.target.value))}></textarea>
       <//>
 
       <div class="row">
@@ -464,9 +473,15 @@ function ExerciseLog({ s, ses, ex, idx }) {
   }, [s.sessions, ex.exId]);
   const best = useMemo(() => bestE1rm(s, ex.exId), [s.sessions, ex.exId]);
   const ref = oneRmRef(s, ex.exId);
-  const sug = suggestNext(last, ex.target);
+  const guide = useMemo(() => sessionGuide(s, ses), [s.programs, ses.blockId, ses.week]);
+  const rpeT = ex.targetRpe ?? (guide?.rpe ? Number(String(guide.rpe).split('-').pop()) : null);
+  const sug0 = ex.prog ? suggestProgression(ex.prog, last, ex.target, { step: loadStep(s, ex.exId), targetRpe: rpeT }) : suggestNext(last, ex.target);
+  // semana de deload: ~10% mais leve que a última carga de trabalho
+  const dl = (kg) => Math.round((kg * 0.9) / (loadStep(s, ex.exId) >= 5 ? 2.5 : 1)) * (loadStep(s, ex.exId) >= 5 ? 2.5 : 1);
+  const sug = ses.deload && sug0 && last ? { ...sug0, kg: dl(last.topKg), backoffKg: sug0.backoffKg ? dl(sug0.backoffKg) : null, text: `Deload: ~${dl(last.topKg)} kg (−10%), RPE 5–6, sem buscar recorde` } : sug0;
   const mode = intensityFor(s, ex.exId);
   const [showNote, setShowNote] = useState(!!ex.note);
+  const [showCue, setShowCue] = useState(false);
   const prevBest = useMemo(() => {
     // melhor 1RM antes desta sessão (para marcar PR ao vivo)
     const h = exerciseHistory(s, ex.exId).filter((x) => x.sessionId !== ses.id && x.date <= ses.date);
@@ -503,6 +518,8 @@ function ExerciseLog({ s, ses, ex, idx }) {
     patchEx((e) => {
       const st = e.sets[j];
       if (!st.done) {
+        // com sistema de progressão, a carga sugerida vale mais que a da última vez
+        if (st.kg == null && sug && ex.prog && !isWarmup(st)) st.kg = setKind(st) === 'backoff' && sug.backoffKg ? sug.backoffKg : sug.kg;
         if (st.kg == null && prev) st.kg = Number(prev.kg);
         if (st.reps == null && prev) st.reps = Number(prev.reps);
         if (st.kg == null && sug && !isWarmup(st)) st.kg = sug.kg;
@@ -530,12 +547,17 @@ function ExerciseLog({ s, ses, ex, idx }) {
         </div>
         <button class="x-btn" aria-label="Opções" onClick=${() => exerciseMenu(s, ses, idx, def)}>⋯</button>
       </div>
-      ${(last || lastNote) && html`
+      ${(ex.cue || ex.prog) && html`
+        <button class="ex-cue" onClick=${() => setShowCue(!showCue)}>
+          ${ex.prog && html`<span class="tag">${PROGRESSIONS[ex.prog]?.short ?? ex.prog}</span>`}
+          <span class=${showCue ? '' : 'clamp1'}>${ex.cue || PROGRESSIONS[ex.prog]?.desc}</span>
+        </button>`}
+      ${(last || (lastNote && lastNote !== ex.note)) && html`
         <div class="ex-prev">
           ${last && html`<b class="mono">ÚLTIMA ${fmtDate(last.date)}:</b>
           <span class="mono">${last.sets.map((x) => `${num(x.kg, 1)}×${x.reps}${x.rpe ? '@' + x.rpe : ''}`).join('  ')}</span>`}
           ${sug && html`<span style="flex-basis:100%;font-weight:700">→ ${sug.text}</span>`}
-          ${lastNote && html`<span style="flex-basis:100%" class="muted">Obs. anterior: ${lastNote}</span>`}
+          ${lastNote && lastNote !== ex.note && html`<span style="flex-basis:100%" class="muted">Obs. anterior: ${lastNote}</span>`}
         </div>
       `}
       <table class="sets">
@@ -576,7 +598,7 @@ function ExerciseLog({ s, ses, ex, idx }) {
       ${mode === 'pct' && !ref && html`<div class="ex-prev muted">Defina o 1RM em ⋯ → 1RM de referência para calcular a carga pela %.</div>`}
       ${showNote && html`
         <div style="padding:8px 12px;border-top:var(--bw) solid var(--line)">
-          <textarea class="input" rows="2" placeholder="Observação deste exercício (ajuste do banco, pegada, dor…)" value=${ex.note ?? ''} onInput=${(e) => patchEx((y) => (y.note = e.target.value))}></textarea>
+          <textarea class="input" rows="2" placeholder="Observação deste exercício (ajuste do banco, pegada, dor…) — fica salva para o próximo treino" value=${ex.note ?? ''} onInput=${(e) => patchEx((y) => (y.note = e.target.value))}></textarea>
         </div>
       `}
       <div class="ex-foot">
@@ -888,6 +910,26 @@ function RmTab({ s }) {
           `;
         })}
       </div>
+    </div>
+  `;
+}
+
+// Diretriz da semana do bloco para uma sessão (RPE alvo, deload).
+function sessionGuide(s, ses) {
+  if (!ses.programId) return null;
+  const p = (s.programs ?? []).find((x) => x.id === ses.programId);
+  const b = p?.blocks.find((x) => x.id === ses.blockId);
+  return b ? { ...weekGuide(b, ses.week ?? 1), block: b, program: p } : null;
+}
+
+function SessionBlockBanner({ s, ses }) {
+  const g = sessionGuide(s, ses);
+  if (!g) return null;
+  return html`
+    <div class=${`block-banner ${ses.deload ? 'deload' : ''}`}>
+      <div class="row-sb"><b>${g.block.name.split(' — ')[0]} · Semana ${ses.week}/${g.block.weeks}</b>${g.rpe && html`<span class="mono small">RPE ${g.rpe}</span>`}</div>
+      <div class="tiny">${BLOCK_GOALS[g.block.goal] ?? ''}${g.text ? ` · ${g.text}` : ''}</div>
+      ${ses.deload && html`<div class="tiny"><b>Deload aplicado:</b> séries reduzidas automaticamente.</div>`}
     </div>
   `;
 }

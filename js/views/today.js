@@ -1,4 +1,5 @@
 // HOJE: painel diário/semanal gamificado.
+import { RankBadge } from './rank.js';
 import { html } from '../lib.js';
 import { targets, latestWeight } from '../store.js';
 import { DAILY_QUESTS, WEEKLY_QUESTS } from '../game.js';
@@ -42,7 +43,7 @@ export function TodayView({ s, game, today }) {
       <section class="card accent">
         <div class="hero">
           <div>
-            <div class="eyebrow">Nível · ${lv.title}</div>
+            <div class="row" style="gap:8px;align-items:center"><${RankBadge} level=${lv.level} /><span class="eyebrow">${lv.title}</span></div>
             <div class="lvl-big">LV${String(lv.level).padStart(2, '0')}</div>
           </div>
           <div class="right">

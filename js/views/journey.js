@@ -1,4 +1,6 @@
 // JORNADA: nível, histórico de XP, objetivos pessoais e conquistas.
+import { RankBadge, rankStyle } from './rank.js';
+import { rankLadder, RANK_STYLES } from '../ranks.js';
 import { html, useState } from '../lib.js';
 import { update, getState, latestWeight, currentBf, allExercises, exerciseById } from '../store.js';
 import { xpForLevel, XP, DAILY_QUESTS, WEEKLY_QUESTS, TITLES } from '../game.js';
@@ -9,7 +11,6 @@ import { addDays, weekStart, fmtDate, num, uid, parseKey, dateKey } from '../uti
 
 export function JourneyView({ s, game, today }) {
   const lv = game.level;
-  const nextTitle = TITLES.find(([l]) => l > lv.level);
   const unlocked = game.achievements.filter((a) => a.unlocked).length;
   return html`
     <div class="stack">
@@ -20,6 +21,7 @@ export function JourneyView({ s, game, today }) {
           <div>
             <div class="eyebrow">${lv.title}</div>
             <div class="lvl-big">LV${String(lv.level).padStart(2, '0')}</div>
+            <div style="margin-top:8px"><${RankBadge} level=${lv.level} size="lg" /></div>
           </div>
           <div class="right">
             <div class="mono" style="font-size:22px;font-weight:800">${num(game.totalXp)}</div>
@@ -27,8 +29,9 @@ export function JourneyView({ s, game, today }) {
           </div>
         </div>
         <div class="xp-bar" style="margin-top:14px"><i style=${`width:${Math.round(lv.pct * 100)}%`}></i><span>${num(lv.need - lv.into)} XP para o LV ${lv.level + 1}</span></div>
-        ${nextTitle && html`<p class="small" style="margin-top:10px;font-weight:600">Próximo título: <b class="up">${nextTitle[1]}</b> no LV ${nextTitle[0]} (${num(xpForLevel(nextTitle[0]) - game.totalXp)} XP)</p>`}
+        ${lv.rank?.nextLevel && html`<p class="small" style="margin-top:10px;font-weight:600">Próxima graduação: <b class="up">${lv.rank.nextName}</b> no LV ${lv.rank.nextLevel} (${num(xpForLevel(lv.rank.nextLevel) - game.totalXp)} XP)</p>`}
       </section>
+      <${RankLadder} s=${s} level=${lv.level} totalXp=${game.totalXp} />
 
       <div class="grid-4">
         <${Stat} v=${game.streak} unit="d" l="Sequência" />
@@ -211,5 +214,38 @@ function XpRules() {
       </dl>
       <p class="tiny muted" style="margin-top:10px">O XP é recalculado a partir dos seus registros: editar ou apagar algo ajusta o total. Nada de farm.</p>
     </details>
+  `;
+}
+
+// Escada de graduações (faixas ou patentes), com a atual destacada.
+function RankLadder({ s, level, totalXp }) {
+  const [open, setOpen] = useState(false);
+  const style = rankStyle(s);
+  const ladder = rankLadder(style);
+  const curIdx = ladder.findIndex((r, i) => level >= r.from && (i === ladder.length - 1 || level < ladder[i + 1].from));
+  const shown = open ? ladder : ladder.slice(Math.max(0, curIdx - 1), curIdx + 3);
+  return html`
+    <section class="card stack-sm">
+      <div class="row-sb">
+        <h3 class="up">${style === 'militar' ? 'Patentes' : 'Faixas'}</h3>
+        <div class="seg" style="flex:none">
+          ${Object.entries(RANK_STYLES).map(([k, v]) => html`<button class=${style === k ? 'on' : ''} style="padding:6px 10px;font-size:12px" onClick=${() => update((st) => { st.settings.rankStyle = k; })}>${v.short}</button>`)}
+        </div>
+      </div>
+      <div class="list rank-ladder">
+        ${shown.map((r) => {
+          const i = ladder.indexOf(r);
+          const cur = i === curIdx;
+          return html`
+            <div class=${`li ${cur ? 'cur' : i > curIdx ? 'locked' : ''}`} key=${r.name}>
+              <${RankBadge} level=${cur ? level : r.from} style=${style} />
+              <span class="t grow">${r.name}</span>
+              <span class="mono tiny">${cur ? 'VOCÊ' : i > curIdx ? `LV ${r.from} · ${num(Math.max(0, xpForLevel(r.from) - totalXp))} XP` : `LV ${r.from} ✓`}</span>
+            </div>`;
+        })}
+      </div>
+      <button class="link-btn small" onClick=${() => setOpen(!open)}>${open ? 'Mostrar menos' : 'Ver todas as graduações'}</button>
+      ${style === 'faixa' && html`<p class="tiny muted">Cada faixa tem 4 graus (1 a cada 2 níveis); a preta tem até 6 graus (1 a cada 3 níveis).</p>`}
+    </section>
   `;
 }

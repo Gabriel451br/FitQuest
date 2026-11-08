@@ -25,7 +25,10 @@ export function emptyState() {
     weights: [], // [{ date, kg }]
     assessments: [], // [{ id, date, kg, neck, waist, hip, bf, method, photos: [{ id, pose }] }]
     customExercises: [],
-    workouts: [], // [{ id, name, exercises: [{ exId, sets, reps }] }]
+    workouts: [], // [{ id, name, folderId?, exercises: [{ exId, sets, reps, rest, note, prog }] }]
+    workoutFolders: [], // [{ id, name }] — pastas para organizar/arquivar treinos ('archive' = Arquivo)
+    programs: [], // programas em blocos (ver programs.js)
+    activeProgramId: null,
     sessions: [], // [{ id, date, workoutId, name, startedAt, finishedAt, exercises: [{ exId, sets: [...] }] }]
     activeSessionId: null,
     goals: [], // [{ id, type, title, target, exId, createdAt, completedAt }]

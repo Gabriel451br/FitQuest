@@ -91,6 +91,7 @@ function FeedTab({ s }) {
     return { rows, profiles: Object.fromEntries(profiles.map((p) => [p.user_id, p])), friends: ids.length - 1 };
   }, []);
   const [, force] = useState(0);
+  const [limit, setLimit] = useState(10);
   if (res.loading && !res.data) return html`<p class="muted small">Carregando…</p>`;
   if (res.error) return html`<div class="callout warn small">${res.error} <button class="link-btn" onClick=${res.reload}>Tentar de novo</button></div>`;
   const { rows, profiles, friends } = res.data;
@@ -106,7 +107,8 @@ function FeedTab({ s }) {
     <div class="stack">
       <div class="row-sb"><span class="small muted">${friends} amigo${friends === 1 ? '' : 's'} · treinos recentes</span><button class="btn xs" onClick=${res.reload}>Atualizar</button></div>
       ${!friends && html`<${Empty} title="Adicione amigos" text="Procure pelo usuário na aba Amigos. Os treinos deles aparecem aqui para comentar com um “boa!” e competir." />`}
-      ${rows.map((r) => html`<${WorkoutCard} key=${r.user_id + r.id} r=${r} p=${profiles[r.user_id]} mine=${r.user_id === me} onLike=${() => like(r)} />`)}
+      ${rows.slice(0, limit).map((r) => html`<${WorkoutCard} key=${r.user_id + r.id} r=${r} p=${profiles[r.user_id]} mine=${r.user_id === me} onLike=${() => like(r)} />`)}
+      ${rows.length > limit && html`<button class="more-btn" onClick=${() => setLimit((n) => n + 10)}>Ver mais treinos (${rows.length - limit})</button>`}
       ${friends > 0 && !rows.length && html`<p class="muted small">Ninguém treinou ainda. Seja o primeiro! 💪</p>`}
     </div>
   `;

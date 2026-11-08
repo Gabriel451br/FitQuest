@@ -750,13 +750,14 @@ function SessionSummary({ s, ses, prs, close }) {
 // --- Histórico ------------------------------------------------------------------------
 
 function HistoryTab({ s }) {
+  const [limit, setLimit] = useState(15);
   const list = finishedSessions(s).filter((x) => !isCardio(x)).reverse();
   const prs = computePRs(s);
   if (!list.length) return html`<${Empty} title="Nenhum treino ainda" text="Seus treinos concluídos aparecem aqui, com volume e recordes." />`;
   return html`
     <p class="tiny muted" style="margin-bottom:8px">Toque em ★ para salvar um treino do histórico na sua lista e repetir depois.</p>
     <div class="list">
-      ${list.map((ses) => {
+      ${list.slice(0, limit).map((ses) => {
         const st = sessionStats(s, ses);
         const n = prs.filter((p) => p.sessionId === ses.id).length;
         return html`
@@ -774,6 +775,7 @@ function HistoryTab({ s }) {
         `;
       })}
     </div>
+    ${list.length > limit && html`<button class="more-btn" style="display:block;margin:8px auto 0" onClick=${() => setLimit((n) => n + 15)}>Ver mais (${list.length - limit})</button>`}
   `;
 }
 

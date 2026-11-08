@@ -43,19 +43,7 @@ export function JourneyView({ s, game, today }) {
       <${XpHistory} game=${game} today=${today} />
       <${Goals} s=${s} />
 
-      <section class="stack-sm">
-        <div class="section-head"><h2>Conquistas</h2><span class="tag fill">${unlocked}/${game.achievements.length}</span></div>
-        <div class="badges">
-          ${game.achievements.map((a) => html`
-            <div class=${`badge ${a.unlocked ? 'on' : ''}`} key=${a.id} title=${a.desc}>
-              <div class="ic">${a.icon}</div>
-              <b>${a.name}</b>
-              <small>${a.desc}</small>
-              <span class="mono tiny" style="margin-top:auto">+${a.xp} XP</span>
-            </div>
-          `)}
-        </div>
-      </section>
+      <${Achievements} list=${game.achievements} unlocked=${unlocked} />
 
       <${XpRules} />
     </div>
@@ -246,6 +234,30 @@ function RankLadder({ s, level, totalXp }) {
       </div>
       <button class="link-btn small" onClick=${() => setOpen(!open)}>${open ? 'Mostrar menos' : 'Ver todas as graduações'}</button>
       ${style === 'faixa' && html`<p class="tiny muted">Cada faixa tem 4 graus (1 a cada 2 níveis); a preta tem até 6 graus (1 a cada 3 níveis).</p>`}
+    </section>
+  `;
+}
+
+// Conquistas: desbloqueadas + as 3 próximas; o resto fica recolhido.
+function Achievements({ list, unlocked }) {
+  const [all, setAll] = useState(false);
+  const on = list.filter((a) => a.unlocked);
+  const off = list.filter((a) => !a.unlocked);
+  const shown = all ? [...on, ...off] : [...on, ...off.slice(0, 3)];
+  return html`
+    <section class="stack-sm">
+      <div class="section-head"><h2>Conquistas</h2><span class="tag fill">${unlocked}/${list.length}</span></div>
+      <div class="badges">
+        ${shown.map((a) => html`
+          <div class=${`badge ${a.unlocked ? 'on' : ''}`} key=${a.id} title=${a.desc}>
+            <div class="ic">${a.icon}</div>
+            <b>${a.name}</b>
+            <small>${a.desc}</small>
+            <span class="mono tiny" style="margin-top:auto">+${a.xp} XP</span>
+          </div>
+        `)}
+      </div>
+      ${off.length > 3 && html`<button class="more-btn" onClick=${() => setAll(!all)}>${all ? 'Mostrar menos' : `Ver todas as conquistas (+${off.length - 3})`}</button>`}
     </section>
   `;
 }

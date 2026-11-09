@@ -86,16 +86,9 @@ export function ProgramsTab({ s }) {
               </button>`;
           })}
         </div>`}
+      ${!list.length && html`<${Empty} title="Nenhum programa ainda" text="Escolha um pronto na Loja ou crie o seu com blocos, semanas e progressão." />`}
       <button class="btn" onClick=${() => openModal((close) => html`<${ProgramEditor} close=${close} />`)}><${Icon} name="plus" />Criar programa</button>
-      <h3 class="up">Modelos de programa</h3>
-      ${Object.entries(PROGRAM_TEMPLATES).map(([k, t]) => html`
-        <div class="card tight stack-sm" key=${k}>
-          <div class="row-sb"><b>${t.name}</b><span class="mono tiny">${t.blocks.length} blocos · ${t.blocks.reduce((a, b) => a + b.weeks, 0)} sem.</span></div>
-          <p class="small muted">${t.desc}</p>
-          ${installed.has(k)
-            ? html`<span class="tiny muted">Já está nos seus programas.</span>`
-            : html`<button class="btn sm dark" onClick=${() => { const id = installProgram(k); toast('Programa adicionado'); openProgram(id); }}><${Icon} name="plus" size="14" />Adicionar aos meus programas</button>`}
-        </div>`)}
+      <p class="tiny muted">Programas prontos ficam na aba <b>Loja</b>.</p>
     </div>
   `;
 }
@@ -159,8 +152,10 @@ function ProgramSheet({ id, close }) {
         <summary class="small"><b>Sistemas de progressão</b></summary>
         <div class="stack-sm" style="margin-top:6px">${Object.values(PROGRESSIONS).map((x) => html`<p class="small"><b>${x.label}:</b> ${x.desc}</p>`)}</div>
       </details>
+      ${p.sections?.length > 0 && p.sections.map((sec) => html`<details class="fold"><summary><span>${sec.title}</span></summary><div class="card tight"><ul class="nutri-list">${sec.items.map((x) => html`<li>${x}</li>`)}</ul></div></details>`)}
       <div class="row">
         <button class="btn grow" onClick=${() => { close(); openModal((c) => html`<${ProgramEditor} program=${p} close=${c} />`); }}><${Icon} name="edit" />Editar</button>
+        <button class="btn" onClick=${async () => { const m = await import('./store.js'); const key = `u-${uid()}`; update((st) => { (st.storePrograms ??= []).push({ ...m.programToTemplate(getState(), p), key }); }); toast('Cadastrado na loja'); close(); m.openStoreProgram(key); }} title="Cadastrar na loja"><${Icon} name="upload" /></button>
         <button class="btn danger" onClick=${remove} aria-label="Excluir programa"><${Icon} name="trash" /></button>
       </div>
     <//>

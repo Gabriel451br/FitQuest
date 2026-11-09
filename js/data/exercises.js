@@ -14,6 +14,7 @@ export const MUSCLES = {
   gluteos: 'Glúteos',
   panturrilha: 'Panturrilha',
   abdomen: 'Abdômen',
+  pescoco: 'Pescoço',
 };
 
 // Faixa de séries semanais de referência (MEV–MRV aproximados para hipertrofia).
@@ -112,6 +113,17 @@ const RAW = [
   ['prehab-joelho', 'Prehab de joelho (2 exercícios, min)', 'quadriceps', []],
   ['rdl-unilateral', 'RDL unilateral leve', 'posterior', ['gluteos']],
   ['pallof', 'Pallof press (anti-rotação)', 'abdomen', []],
+
+  // strongman / pegada / pescoço
+  ['farmer-walk', 'Farmer walk (m)', 'antebraco', ['trapezio', 'abdomen']],
+  ['suitcase-carry', 'Suitcase carry unilateral (m)', 'abdomen', ['antebraco', 'trapezio']],
+  ['push-press', 'Push press (barra)', 'ombros', ['triceps', 'quadriceps']],
+  ['rack-pull', 'Rack pull (barra na altura do joelho)', 'costas', ['trapezio', 'posterior', 'gluteos']],
+  ['pescoco', 'Pescoço em 4 direções', 'pescoco', ['trapezio']],
+  ['pescoco-iso', 'Pescoço: isometria 4 direções (s)', 'pescoco', []],
+  ['dead-hang', 'Dead hang (s)', 'antebraco', ['costas']],
+  ['circuito-antebraco', 'Circuito de antebraço (dead hang + rosca de punho + inversa)', 'antebraco', ['biceps']],
+  ['prancha-lateral', 'Prancha lateral (s)', 'abdomen', []],
 ];
 
 export const BASE_EXERCISES = RAW.map(([id, name, primary, secondary]) => ({ id, name, primary, secondary }));

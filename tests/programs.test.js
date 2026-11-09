@@ -90,3 +90,30 @@ test('sistemas de progressão', () => {
   // linear
   assert.equal(suggestProgression('linear', { sets: [{ kg: 50, reps: 5 }, { kg: 50, reps: 5 }] }, '5', { step: 2.5 }).kg, 52.5);
 });
+
+test('todos os modelos: exercícios cadastrados, semanas e treinos coerentes', () => {
+  for (const key of Object.keys(PROGRAM_TEMPLATES)) {
+    const s = emptyState();
+    const { workouts, program } = instantiateProgram(key, uid);
+    s.workouts.push(...workouts);
+    for (const w of workouts) for (const e of w.exercises) {
+      assert.notEqual(exerciseById(s, e.exId).name, e.exId, `${key}: exercício ${e.exId} não cadastrado`);
+      assert.ok(e.sets >= 1 && e.reps, `${key}: ${e.exId} sem séries/reps`);
+    }
+    assert.ok(program.blocks.every((b) => b.workoutIds.length && b.weeks >= 1), key);
+  }
+  const t = instantiateProgram('tronco-arvore', uid);
+  assert.equal(t.program.blocks.reduce((a, b) => a + b.weeks, 0), 12);
+  const a1 = t.workouts[0];
+  assert.equal(a1.warmup.length, 4);
+  assert.ok(a1.short.includes('60 min'));
+  const terra = a1.exercises[0];
+  assert.deepEqual([terra.exId, terra.sets, terra.reps, terra.rest, terra.section], ['levantamento-terra', 4, '6-8', 210, 'Força principal']);
+  assert.equal(a1.exercises.filter((e) => e.superset === 'S1').length, 2);
+  assert.ok(a1.exercises.find((e) => e.exId === 'rosca-direta').optional);
+  // bloco 3: semana 4 é teste, não deload
+  assert.equal(weekGuide(t.program.blocks[2], 4).deload, false);
+  assert.equal(weekGuide(t.program.blocks[0], 4).deload, true);
+  assert.equal(t.workouts[6].exercises[0].exId, 'levantamento-terra');
+  assert.equal(t.workouts[6].exercises[0].reps, '3-5');
+});

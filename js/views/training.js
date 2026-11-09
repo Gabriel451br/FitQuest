@@ -11,6 +11,8 @@ import { ACTIVITIES, isCardio, sessionType } from '../cardio.js';
 import { CardioHome, CardioLive } from './cardio.js';
 import { LockPrompt } from './lockprompt.js';
 import { ProgramCard, ProgramsTab, FoldersSection, openMoveSheet } from './programs.js';
+import { ProgramsHub, StoreTeaser } from './store.js';
+import { activeProgram } from '../programs.js';
 import { suggestProgression, loadStep, PROGRESSIONS, BLOCK_GOALS, weekGuide } from '../programs.js';
 import '../lockscreen.js';
 import { go } from '../nav.js';
@@ -51,16 +53,14 @@ function TrainingHome({ s, today }) {
       ${cat === 'strength'
         ? html`
           <div class="tabs">
-            ${[['rotina', 'Rotina'], ['blocos', 'Blocos'], ['historico', 'Histórico'], ['progresso', 'Progresso'], ['volume', 'Volume'], ['rm', 'RM']].map(([k, l]) => html`
+            ${[['rotina', 'Hoje'], ['blocos', 'Programas'], ['historico', 'Histórico'], ['progresso', 'Progresso']].map(([k, l]) => html`
               <button class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}>${l}</button>
             `)}
           </div>
           ${tab === 'rotina' && html`<${RoutineTab} s=${s} today=${today} />`}
-          ${tab === 'blocos' && html`<${ProgramsTab} s=${s} />`}
+          ${tab === 'blocos' && html`<${ProgramsHub} s=${s}><${ProgramsTab} s=${s} /><//>`}
           ${tab === 'historico' && html`<${HistoryTab} s=${s} />`}
-          ${tab === 'progresso' && html`<${ProgressTab} s=${s} />`}
-          ${tab === 'volume' && html`<${VolumeTab} s=${s} today=${today} />`}
-          ${tab === 'rm' && html`<${RmTab} s=${s} />`}
+          ${tab === 'progresso' && html`<${StatsTab} s=${s} today=${today} />`}
         `
         : html`<${CardioHome} key=${cat} s=${s} type=${cat} today=${today} />`}
     </div>
@@ -109,6 +109,7 @@ function RoutineTab({ s, today }) {
   return html`
     <div class="stack">
       <${ProgramCard} s=${s} today=${today} />
+      ${!activeProgram(s) && html`<${StoreTeaser} s=${s} />`}
       <div class="section-head"><h3 class="up">Meus treinos</h3></div>
       ${workouts.length
         ? html`<div class="list">${workouts.map((w, wi) => row(w, wi, workouts))}</div>`
@@ -431,7 +432,10 @@ function SessionView({ s, ses }) {
         <//>
       `}
 
-      ${ses.exercises.map((ex, i) => html`<${ExerciseLog} key=${ex.exId + i} s=${s} ses=${ses} ex=${ex} idx=${i} />`)}
+      ${!editing && (ses.warmup?.length || ses.short) && html`<${SessionExtras} ses=${ses} />`}
+      ${ses.exercises.map((ex, i) => html`
+        ${ex.section && ex.section !== ses.exercises[i - 1]?.section && html`<div class="sec-head" key=${'h' + i}>${ex.section}</div>`}
+        <${ExerciseLog} key=${ex.exId + i} s=${s} ses=${ses} ex=${ex} idx=${i} />`)}
 
       <button class="btn" onClick=${() => pickExercise((exId) => patchSession(ses.id, (x) => x.exercises.push({ exId, target: '8-12', rest: 90, sets: [0, 1, 2].map(() => newSet()) })))}>
         <${Icon} name="plus" />Adicionar exercício
@@ -535,12 +539,14 @@ function ExerciseLog({ s, ses, ex, idx }) {
 
   let workN = 0;
   return html`
-    <div class="ex-card">
+    <div class=${`ex-card ${ex.optional ? 'optional' : ''} ${ex.superset ? 'ss' : ''}`}>
       <div class="ex-head">
         <div class="grow">
           <h3>${def.name}</h3>
           <div class="row wrap" style="gap:6px;margin-top:6px">
             <span class="tag fill">${MUSCLES[def.primary]}</span>
+            ${ex.superset && html`<span class="tag" style="background:var(--c);color:#fff;border-color:transparent">Superset</span>`}
+            ${ex.optional && html`<span class="tag">Cortável</span>`}
             <button class="tag tag-btn" onClick=${() => openTargetEditor(s, ses, idx)} title="Editar meta">${targetLabel(ex) ? `Meta ${targetLabel(ex)}` : '+ Meta'} ✎</button>
             ${ref > 0 && html`<span class="tag">1RM ${num(ref, 1)}${s.exerciseSettings?.[ex.exId]?.oneRm ? '' : ' est.'}</span>`}
           </div>
@@ -932,6 +938,45 @@ function SessionBlockBanner({ s, ses }) {
       <div class="row-sb"><b>${g.block.name.split(' — ')[0]} · Semana ${ses.week}/${g.block.weeks}</b>${g.rpe && html`<span class="mono small">RPE ${g.rpe}</span>`}</div>
       <div class="tiny">${BLOCK_GOALS[g.block.goal] ?? ''}${g.text ? ` · ${g.text}` : ''}</div>
       ${ses.deload && html`<div class="tiny"><b>Deload aplicado:</b> séries reduzidas automaticamente.</div>`}
+    </div>
+  `;
+}
+
+// Progresso agrupado: evolução por exercício, volume por grupo e 1RM.
+function StatsTab({ s, today }) {
+  const [v, setV] = useState('evolucao');
+  return html`
+    <div class="stack">
+      <div class="seg">
+        ${[['evolucao', 'Evolução'], ['volume', 'Volume'], ['rm', '1RM']].map(([k, l]) => html`<button class=${v === k ? 'on' : ''} onClick=${() => setV(k)}>${l}</button>`)}
+      </div>
+      ${v === 'evolucao' && html`<${ProgressTab} s=${s} />`}
+      ${v === 'volume' && html`<${VolumeTab} s=${s} today=${today} />`}
+      ${v === 'rm' && html`<${RmTab} s=${s} />`}
+    </div>
+  `;
+}
+
+// Aquecimento do treino e "versão curta" (tira os exercícios cortáveis ainda não feitos).
+function SessionExtras({ ses }) {
+  const cut = ses.exercises.filter((e) => e.optional && !e.sets.some((x) => x.done));
+  const shorten = async () => {
+    if (!(await confirmDialog(`Versão curta: remover ${cut.length} exercício(s) cortável(is) ainda não feito(s)?`, { ok: 'Encurtar', danger: false }))) return;
+    patchSession(ses.id, (x) => { x.exercises = x.exercises.filter((e) => !(e.optional && !e.sets.some((y) => y.done))); x.shortened = true; });
+    toast('Treino encurtado');
+  };
+  return html`
+    <div class="stack-sm">
+      ${ses.warmup?.length > 0 && html`
+        <details class="fold">
+          <summary><span>🔥 Aquecimento · 8–10 min</span></summary>
+          <div class="card tight"><ul class="nutri-list">${ses.warmup.map((w) => html`<li>${w}</li>`)}</ul></div>
+        </details>`}
+      ${ses.short && cut.length > 0 && html`
+        <div class="callout small row-sb" style="gap:10px">
+          <span><b>Sem tempo?</b> ${ses.short}</span>
+          <button class="btn xs dark" style="flex:none" onClick=${shorten}>Versão curta</button>
+        </div>`}
     </div>
   `;
 }

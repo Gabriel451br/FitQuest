@@ -38,7 +38,7 @@ export const currentBlock = (p) => p?.blocks?.[p.blockIndex ?? 0] ?? null;
 export function weekGuide(block, week) {
   const plan = block?.weekPlan?.length ? block.weekPlan : DEFAULT_WEEK_PLAN;
   const g = plan.find((x) => week >= x.from && week <= x.to) ?? null;
-  const deload = !!g?.deload || (block?.deloadWeek && week === block.deloadWeek);
+  const deload = !!g?.deload || (!!block?.deloadWeek && week === block.deloadWeek);
   return { ...(g ?? {}), deload };
 }
 

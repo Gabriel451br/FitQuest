@@ -825,3 +825,47 @@ details.fold[open] > .list { border-top: 0; border-top-left-radius: 0; border-to
 .xp-bar > span { border-radius: 4px; }
 .card.accent .xp-bar { background: rgba(255, 255, 255, 0.5); }
 .belt .belt-body, .belt .belt-tip { border-color: color-mix(in srgb, var(--ink) 45%, transparent); }
+
+/* ---------- Loja de programas ---------- */
+.store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.store-card { display: flex; flex-direction: column; text-align: left; padding: 0; border: 1px solid var(--hair-2); border-radius: var(--r); background: var(--surface); overflow: hidden; color: var(--ink); font-family: inherit; cursor: pointer; }
+.store-card:active { transform: scale(0.99); }
+.store-cover { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; min-height: 120px; padding: 14px; color: #fff; background:
+  radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--cover) 55%, #fff) 0%, transparent 55%),
+  linear-gradient(160deg, var(--cover) 0%, color-mix(in srgb, var(--cover) 45%, #0b0b0b) 100%); }
+.store-cover::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, transparent 0 18px, rgba(255, 255, 255, 0.05) 18px 19px); pointer-events: none; }
+.store-cover b { font-size: 20px; line-height: 1.05; text-transform: uppercase; letter-spacing: -0.02em; position: relative; z-index: 1; }
+.store-cover .tag { position: absolute; top: 12px; right: 12px; z-index: 1; background: #0b0b0b; color: #f1efe8; border-color: transparent; }
+.store-cover .tag.acc { background: var(--accent); color: #0b0b0b; }
+.store-cover.big { min-height: 170px; border-radius: var(--r); }
+.store-cover.big b { font-size: 26px; }
+.store-author { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; position: relative; z-index: 1; }
+.store-body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
+.store-body p { color: var(--ink-2); }
+.store-stats { display: flex; gap: 12px; flex-wrap: wrap; font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
+.store-stats b { color: var(--ink); font-size: 13px; }
+.store-stats.big { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.store-stats.big span { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 1px solid var(--hair-2); border-radius: var(--r-sm); background: var(--surface); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
+.store-stats.big b { font-size: 20px; letter-spacing: -0.03em; }
+.sched { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.sd { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--hair-2); border-radius: var(--r-sm); background: var(--surface); }
+.sd i { font-style: normal; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; color: var(--ink-2); text-transform: uppercase; }
+.sd b { font-size: 14px; }
+.sd.lift { background: #0b0b0b; border-color: #0b0b0b; color: var(--accent); }
+.sd.lift i { color: #a3a199; }
+.sd.off { opacity: 0.55; }
+.week-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 4px; }
+.wp { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; border-radius: 7px; background: var(--surface-2); }
+.wp i { font-style: normal; font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); }
+.wp b { font-family: var(--mono); font-size: 11px; }
+.wp.deload { background: color-mix(in srgb, #ff9f1a 22%, var(--surface)); }
+.wprev { padding: 4px 14px 12px; display: flex; flex-direction: column; gap: 2px; }
+.wprev-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; border-bottom: 1px solid var(--hair); }
+
+/* treino: seções, aquecimento, superset */
+.sec-head { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+.sec-head::after { content: ''; flex: 1; height: 1px; background: var(--hair-2); }
+.ex-card.optional { border-style: dashed; }
+.ex-card.ss { border-left: 4px solid var(--c); }
+.wp.test { background: color-mix(in srgb, #d2a62b 30%, var(--surface)); }
+.title-input { font-size: 19px !important; }

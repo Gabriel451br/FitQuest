@@ -151,6 +151,7 @@ export function startSession(workout, date = dateKey()) {
       finishedAt: null,
       // observações do treino continuam de uma sessão para a outra
       note: prevSameWorkout?.note ?? '',
+      ...(workout?.warmup ? { warmup: workout.warmup } : {}), ...(workout?.short ? { short: workout.short } : {}),
       ...(inBlock ? { programId: prog.id, blockId: bp.block.id, week: Math.min(bp.week, bp.weeks), deload: !!deload } : {}),
       exercises: (workout?.exercises ?? []).map((e) => {
         const n = deload ? deloadSets(e.sets || 3) : e.sets || 3;
@@ -164,6 +165,7 @@ export function startSession(workout, date = dateKey()) {
           rest: e.rest ?? 90,
           cue: e.note ?? '',
           prog: e.prog ?? (inBlock ? bp.block.progression : null),
+          ...(e.section ? { section: e.section } : {}), ...(e.optional ? { optional: true } : {}), ...(e.superset ? { superset: e.superset } : {}),
           note: lastExerciseNote(s, e.exId),
           sets: Array.from({ length: n }, (_, i) => ({ kg: e.targetKg ?? null, reps: null, rpe: null, pct: e.targetPct ?? null, done: false, kind: topset ? (i === 0 ? 'top' : 'backoff') : 'work', auto: { kg: true, pct: true } })),
         };

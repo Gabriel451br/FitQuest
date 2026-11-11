@@ -10,6 +10,8 @@ export const SET_KINDS = {
   warmup: { label: 'Aquecimento', short: 'W', hint: 'Não conta no volume nem em recordes' },
   top: { label: 'Top set', short: 'T', hint: 'Série principal mais pesada' },
   backoff: { label: 'Back-off', short: 'B', hint: 'Série mais leve após a top set' },
+  amrap: { label: 'AMRAP', short: 'A+', hint: 'Máximo de reps com boa técnica (as many reps as possible)' },
+  speed: { label: 'Speed set', short: 'SP', hint: 'Carga leve, máxima velocidade na concêntrica' },
   drop: { label: 'Drop set', short: 'D', hint: 'Reduz a carga e continua sem descanso' },
   failure: { label: 'Até a falha', short: 'F', hint: 'Levada à falha concêntrica' },
   restpause: { label: 'Rest-pause', short: 'RP', hint: 'Mini pausas de 10–20 s dentro da série' },

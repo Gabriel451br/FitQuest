@@ -2,6 +2,7 @@
 import { macroTargets, age } from './calc.js';
 import { BASE_EXERCISES } from './data/exercises.js';
 import { dateKey } from './util.js';
+import { upgradePrograms } from './data/programs.js';
 
 export const MEALS = [
   { key: 'cafe', label: 'Café da manhã' },
@@ -48,6 +49,10 @@ export function migrate(s) {
   delete out.settings.showRpe;
   delete out.settings.showPct;
   out.version = 2;
+  // programas instalados de modelos embutidos acompanham a versão nova do modelo,
+  // mantendo ids, bloco/semana atuais e histórico (não mexe em updatedAt: a próxima
+  // alteração local é que grava, para não sobrescrever dados mais novos de outro aparelho)
+  try { if (Array.isArray(out.programs) && Array.isArray(out.workouts)) upgradePrograms(out); } catch (e) { console.warn('upgradePrograms', e); }
   return out;
 }
 

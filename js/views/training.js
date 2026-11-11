@@ -14,6 +14,7 @@ import { ProgramCard, ProgramsTab, FoldersSection, openMoveSheet } from './progr
 import { ProgramsHub, StoreTeaser } from './store.js';
 import { activeProgram } from '../programs.js';
 import { suggestProgression, loadStep, PROGRESSIONS, BLOCK_GOALS, weekGuide } from '../programs.js';
+import { SCHEMES } from '../periodization.js';
 import '../lockscreen.js';
 import { go } from '../nav.js';
 import { alarm, prime, keepAwake } from '../sound.js';
@@ -437,6 +438,11 @@ function SessionView({ s, ses }) {
         ${ex.section && ex.section !== ses.exercises[i - 1]?.section && html`<div class="sec-head" key=${'h' + i}>${ex.section}</div>`}
         <${ExerciseLog} key=${ex.exId + i} s=${s} ses=${ses} ex=${ex} idx=${i} />`)}
 
+      ${ses.finisher?.length > 0 && html`
+        <details class="fold" open=${!editing}>
+          <summary><span>🏃 Cardio / finalização</span></summary>
+          <div class="card tight"><ul class="nutri-list">${ses.finisher.map((w) => html`<li>${w}</li>`)}</ul></div>
+        </details>`}
       <button class="btn" onClick=${() => pickExercise((exId) => patchSession(ses.id, (x) => x.exercises.push({ exId, target: '8-12', rest: 90, sets: [0, 1, 2].map(() => newSet()) })))}>
         <${Icon} name="plus" />Adicionar exercício
       </button>
@@ -479,7 +485,7 @@ function ExerciseLog({ s, ses, ex, idx }) {
   const ref = oneRmRef(s, ex.exId);
   const guide = useMemo(() => sessionGuide(s, ses), [s.programs, ses.blockId, ses.week]);
   const rpeT = ex.targetRpe ?? (guide?.rpe ? Number(String(guide.rpe).split('-').pop()) : null);
-  const sug0 = ex.prog ? suggestProgression(ex.prog, last, ex.target, { step: loadStep(s, ex.exId), targetRpe: rpeT }) : suggestNext(last, ex.target);
+  const sug0 = ex.rx ? null : ex.prog ? suggestProgression(ex.prog, last, ex.target, { step: loadStep(s, ex.exId), targetRpe: rpeT }) : suggestNext(last, ex.target);
   // semana de deload: ~10% mais leve que a última carga de trabalho
   const dl = (kg) => Math.round((kg * 0.9) / (loadStep(s, ex.exId) >= 5 ? 2.5 : 1)) * (loadStep(s, ex.exId) >= 5 ? 2.5 : 1);
   const sug = ses.deload && sug0 && last ? { ...sug0, kg: dl(last.topKg), backoffKg: sug0.backoffKg ? dl(sug0.backoffKg) : null, text: `Deload: ~${dl(last.topKg)} kg (−10%), RPE 5–6, sem buscar recorde` } : sug0;
@@ -525,7 +531,8 @@ function ExerciseLog({ s, ses, ex, idx }) {
         // com sistema de progressão, a carga sugerida vale mais que a da última vez
         if (st.kg == null && sug && ex.prog && !isWarmup(st)) st.kg = setKind(st) === 'backoff' && sug.backoffKg ? sug.backoffKg : sug.kg;
         if (st.kg == null && prev) st.kg = Number(prev.kg);
-        if (st.reps == null && prev) st.reps = Number(prev.reps);
+        if (st.reps == null && st.tReps && !String(st.tReps).includes('+')) st.reps = parseInt(st.tReps, 10) || null;
+        if (st.reps == null && prev && !st.tReps) st.reps = Number(prev.reps);
         if (st.kg == null && sug && !isWarmup(st)) st.kg = sug.kg;
         st.auto = {};
       }
@@ -553,10 +560,11 @@ function ExerciseLog({ s, ses, ex, idx }) {
         </div>
         <button class="x-btn" aria-label="Opções" onClick=${() => exerciseMenu(s, ses, idx, def)}>⋯</button>
       </div>
+      ${ex.rx && html`<div class="ex-rx"><b>${SCHEMES[ex.prog]?.short ?? 'Prescrição'}</b> ${ex.rx}${ref > 0 ? '' : html` <span class="muted">· defina o 1RM em ⋯ para calcular as cargas</span>`}</div>`}
       ${(ex.cue || ex.prog) && html`
         <button class="ex-cue" onClick=${() => setShowCue(!showCue)}>
-          ${ex.prog && html`<span class="tag">${PROGRESSIONS[ex.prog]?.short ?? ex.prog}</span>`}
-          <span class=${showCue ? '' : 'clamp1'}>${ex.cue || PROGRESSIONS[ex.prog]?.desc}</span>
+          ${ex.prog && !ex.rx && html`<span class="tag">${PROGRESSIONS[ex.prog]?.short ?? SCHEMES[ex.prog]?.short ?? ex.prog}</span>`}
+          <span class=${showCue ? '' : 'clamp1'}>${ex.cue || PROGRESSIONS[ex.prog]?.desc || SCHEMES[ex.prog]?.desc}</span>
         </button>`}
       ${(last || (lastNote && lastNote !== ex.note)) && html`
         <div class="ex-prev">
@@ -592,8 +600,8 @@ function ExerciseLog({ s, ses, ex, idx }) {
                   ${isPr && html`<div class="pr-flag">PR</div>`}
                 </td>
                 <td><${NumField} class=${`input ${a.kg ? 'auto' : ''}`} placeholder=${prev ? num(prev.kg, 1) : (!warm && sug?.kg) || '—'} value=${st.kg} onValue=${(v) => patchSet(j, 'kg', v)} aria-label="Carga" /></td>
-                <td><${NumField} class=${`input ${a.reps ? 'auto' : ''}`} decimals=${false} placeholder=${prev?.reps ?? '—'} value=${st.reps} onValue=${(v) => patchSet(j, 'reps', v)} aria-label="Repetições" /></td>
-                ${mode === 'rpe' && html`<td><${NumField} class=${`input ${a.rpe ? 'auto' : ''}`} placeholder=${ex.targetRpe ?? '—'} value=${st.rpe} onValue=${(v) => patchSet(j, 'rpe', v)} aria-label="RPE" /></td>`}
+                <td><${NumField} class=${`input ${a.reps ? 'auto' : ''}`} decimals=${false} placeholder=${st.tReps ?? prev?.reps ?? '—'} value=${st.reps} onValue=${(v) => patchSet(j, 'reps', v)} aria-label="Repetições" /></td>
+                ${mode === 'rpe' && html`<td><${NumField} class=${`input ${a.rpe ? 'auto' : ''}`} placeholder=${st.tRpe ?? ex.targetRpe ?? '—'} value=${st.rpe} onValue=${(v) => patchSet(j, 'rpe', v)} aria-label="RPE" /></td>`}
                 ${mode === 'pct' && html`<td><${NumField} class=${`input ${a.pct ? 'auto' : ''}`} decimals=${false} placeholder=${pctShown ?? ex.targetPct ?? '—'} value=${st.pct} onValue=${(v) => patchSet(j, 'pct', v)} aria-label="% de 1RM" /></td>`}
                 <td><button class=${`set-check ${st.done ? 'on' : ''}`} onClick=${() => toggleDone(j)} aria-label="Série feita"><${Icon} name="check" /></button></td>
               </tr>

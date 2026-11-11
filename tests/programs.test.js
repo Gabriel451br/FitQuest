@@ -24,17 +24,20 @@ const finish = (s, p, workoutId, t) => s.sessions.push({
   startedAt: 2000 + t, finishedAt: 3000 + t, exercises: [{ exId: 'agachamento', sets: [{ kg: 100, reps: 8, done: true }] }],
 });
 
-test('Dad Strength: 3 blocos × A/B/C, todos os exercícios existem', () => {
+test('Dad Strength: Base < Hipertrofia > Potência em nº de exercícios; tudo cadastrado', () => {
   const { s, program } = setup();
   assert.equal(program.blocks.length, 3);
-  assert.ok(program.blocks.every((b) => b.workoutIds.length === 3 && b.weeks === 7));
+  assert.deepEqual(program.blocks.map((b) => b.weeks), [6, 8, 6]);
   assert.equal(s.workouts.length, 9);
   for (const w of s.workouts) for (const e of w.exercises) assert.notEqual(exerciseById(s, e.exId).name, e.exId, `exercício ${e.exId} não cadastrado`);
-  const ex = s.workouts[0].exercises.find((e) => e.exId === 'supino-pausado');
-  assert.equal(ex.prog, 'topset');
-  assert.ok(ex.note.includes('RPE 7–8'));
+  const count = (bi) => program.blocks[bi].workoutIds.reduce((a, id) => a + s.workouts.find((w) => w.id === id).exercises.length, 0);
+  assert.ok(count(1) > count(0) && count(1) > count(2), 'hipertrofia tem mais exercícios');
+  const sq = s.workouts[0].exercises.find((e) => e.exId === 'agachamento');
+  assert.equal(sq.prog, 'pct');
+  assert.equal(sq.groups[0].pct, 62.5);
+  assert.equal(s.workouts[3].exercises[0].prog, 'w531');
   assert.ok(s.workouts.every((w) => w.folderId === s.workoutFolders[0].id), 'treinos ficam na pasta do programa');
-  assert.ok(PROGRAM_TEMPLATES['dad-strength'].rules.length >= 5);
+  assert.equal(program.templateVersion, PROGRAM_TEMPLATES['dad-strength'].version);
 });
 
 test('semana avança ao concluir A, B e C; rodízio e deload na semana 7', () => {
@@ -57,14 +60,14 @@ test('semana avança ao concluir A, B e C; rodízio e deload na semana 7', () =>
   // sessões de antes do início do bloco ou de outro programa não contam
   s.sessions.push({ id: 'x', type: 'strength', workoutId: A, programId: 'outro', blockId: program.blocks[0].id, startedAt: 5000, finishedAt: 6000, date: '2026-11-01', exercises: [] });
   assert.equal(blockProgress(s, program).sessions, 3);
-  for (let t = 4; t <= 18; t++) finish(s, program, [A, B, C][t % 3], t);
+  for (let t = 4; t <= 15; t++) finish(s, program, [A, B, C][t % 3], t);
   bp = blockProgress(s, program);
-  assert.equal(bp.week, 7);
+  assert.equal(bp.week, 6);
   assert.equal(bp.guide.deload, true);
   assert.equal(deloadSets(3), 2);
-  for (let t = 19; t <= 21; t++) finish(s, program, [A, B, C][t % 3], t);
+  for (let t = 16; t <= 18; t++) finish(s, program, [A, B, C][t % 3], t);
   assert.equal(blockProgress(s, program).finished, true);
-  assert.equal(weekGuide(program.blocks[0], 3).rpe, '7-8');
+  assert.equal(weekGuide(program.blocks[0], 3).rpe, '6-7');
   assert.ok(activeProgram(s));
 });
 
@@ -106,14 +109,17 @@ test('todos os modelos: exercícios cadastrados, semanas e treinos coerentes', (
   assert.equal(t.program.blocks.reduce((a, b) => a + b.weeks, 0), 12);
   const a1 = t.workouts[0];
   assert.equal(a1.warmup.length, 4);
-  assert.ok(a1.short.includes('60 min'));
   const terra = a1.exercises[0];
-  assert.deepEqual([terra.exId, terra.sets, terra.reps, terra.rest, terra.section], ['levantamento-terra', 4, '6-8', 210, 'Força principal']);
-  assert.equal(a1.exercises.filter((e) => e.superset === 'S1').length, 2);
-  assert.ok(a1.exercises.find((e) => e.exId === 'rosca-direta').optional);
+  assert.deepEqual([terra.exId, terra.prog, terra.groups[0].pct, terra.section], ['levantamento-terra', 'pct', 60, 'Força principal']);
+  // base: poucos exercícios; hipertrofia: mais e com supersets; força: poucos e autorregulados
+  const n = (bi) => t.workouts.slice(bi * 3, bi * 3 + 3).map((w) => w.exercises.length);
+  assert.ok(n(1).every((x, i) => x > n(0)[i] && x > n(2)[i]));
+  assert.equal(t.workouts[3].exercises.filter((e) => e.superset === 'S1').length, 2);
+  assert.equal(t.program.blocks[1].wave, 8);
+  assert.equal(t.workouts[3].exercises[0].prog, 'jugg');
+  assert.equal(t.workouts[6].exercises[0].prog, 'haack');
   // bloco 3: semana 4 é teste, não deload
   assert.equal(weekGuide(t.program.blocks[2], 4).deload, false);
+  assert.equal(weekGuide(t.program.blocks[2], 4).test, true);
   assert.equal(weekGuide(t.program.blocks[0], 4).deload, true);
-  assert.equal(t.workouts[6].exercises[0].exId, 'levantamento-terra');
-  assert.equal(t.workouts[6].exercises[0].reps, '3-5');
 });

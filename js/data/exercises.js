@@ -116,6 +116,16 @@ const RAW = [
 
   // strongman / pegada / pescoço
   ['farmer-walk', 'Farmer walk (m)', 'antebraco', ['trapezio', 'abdomen']],
+  ['salto-carga', 'Salto com carga (loaded jump)', 'quadriceps', ['gluteos', 'panturrilha']],
+  ['salto-vertical', 'Salto vertical / pliométrico', 'quadriceps', ['gluteos', 'panturrilha']],
+  ['flexao-pliometrica', 'Flexão pliométrica (explosiva)', 'peito', ['triceps', 'ombros']],
+  ['remada-gorila', 'Remada gorila (halteres no chão)', 'costas', ['biceps', 'abdomen']],
+  ['remada-pendlay', 'Remada Pendlay', 'costas', ['biceps', 'posterior']],
+  ['puxada-supinada', 'Puxada frente (pegada supinada)', 'costas', ['biceps']],
+  ['terra-pausado', 'Terra pausado (2 s abaixo do joelho)', 'posterior', ['costas', 'gluteos']],
+  ['agachamento-pausado', 'Agachamento pausado (2 s no fundo)', 'quadriceps', ['gluteos']],
+  ['rosca-scott-martelo', 'Rosca Scott martelo', 'biceps', ['antebraco']],
+  ['rosca-punho-cabo', 'Rosca de punho unilateral no cabo', 'antebraco', []],
   ['suitcase-carry', 'Suitcase carry unilateral (m)', 'abdomen', ['antebraco', 'trapezio']],
   ['push-press', 'Push press (barra)', 'ombros', ['triceps', 'quadriceps']],
   ['rack-pull', 'Rack pull (barra na altura do joelho)', 'costas', ['trapezio', 'posterior', 'gluteos']],

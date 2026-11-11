@@ -4,6 +4,7 @@
 // Puro (sem navegador): usado pelas telas e pelos testes.
 import { finishedSessions, exerciseById } from './selectors.js';
 import { parseRepRange, setKind } from './training.js';
+import { SCHEMES } from './periodization.js';
 
 export const BLOCK_GOALS = {
   forca: 'Força',
@@ -21,6 +22,8 @@ export const PROGRESSIONS = {
   linear: { label: 'Linear', short: 'Linear', desc: 'Completou todas as séries e reps → +carga na próxima sessão.' },
   rpe: { label: 'Autorregulada (RPE)', short: 'RPE', desc: 'Ajusta a carga pelo RPE da última vez: abaixo do alvo sobe, acima desce.' },
   explosive: { label: 'Explosivos', short: 'Explosivo', desc: 'Poucas reps rápidas, sem falha. Só sobe a carga quando a execução estiver consistente.' },
+  // por %RM / RPE (cargas calculadas pelo 1RM): %RM linear, 5/3/1, Juggernaut, autorregulada (Haack)
+  ...SCHEMES,
 };
 
 // Diretrizes padrão por semana (bloco de 7 semanas + 8ª opcional).

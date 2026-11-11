@@ -1,13 +1,15 @@
 // Ações de domínio reutilizadas entre telas.
 import { html, useState } from './lib.js';
 import { update, getState, finishedSessions, exerciseById } from './store.js';
-import { openModal, Sheet, Field, NumInput, toast, confirmDialog } from './ui.js';
+import { openModal, Sheet, Field, NumInput, toast, confirmDialog, choiceDialog } from './ui.js';
 import { dateKey, uid } from './util.js';
 import { ACTIVITIES, sessionType } from './cardio.js';
 import { GPS_TYPES } from './gps.js';
 import { routineFromSession } from './training.js';
-import { activeProgram, blockProgress, deloadSets } from './programs.js';
-import { instantiateProgram } from './data/programs.js';
+import { activeProgram, blockProgress, deloadSets, loadStep } from './programs.js';
+import { isScheme, prescribe, prescribedSets } from './periodization.js';
+import { oneRmRef } from './training.js';
+import { installInto } from './data/programs.js';
 
 export function addWater(date, ml) {
   update((s) => {
@@ -139,6 +141,8 @@ export function startSession(workout, date = dateKey()) {
   const bp = prog ? blockProgress(s, prog) : null;
   const inBlock = bp && workout && bp.block.workoutIds.includes(workout.id);
   const deload = inBlock && bp.guide.deload;
+  const week = inBlock ? Math.min(bp.week, bp.weeks) : 1;
+  const rpeWeek = inBlock && bp.guide.rpe ? Number(String(bp.guide.rpe).split('-').pop()) : null;
   const prevSameWorkout = workout ? finishedSessions(s).filter((x) => x.workoutId === workout.id && x.note).pop() : null;
   update((st) => {
     st.sessions.push({
@@ -153,13 +157,28 @@ export function startSession(workout, date = dateKey()) {
       note: prevSameWorkout?.note ?? '',
       ...(workout?.warmup ? { warmup: workout.warmup } : {}), ...(workout?.short ? { short: workout.short } : {}),
       ...(inBlock ? { programId: prog.id, blockId: bp.block.id, week: Math.min(bp.week, bp.weeks), deload: !!deload } : {}),
+      ...(workout?.finisher?.length ? { finisher: workout.finisher } : {}),
       exercises: (workout?.exercises ?? []).map((e) => {
         const n = deload ? deloadSets(e.sets || 3) : e.sets || 3;
-        const topset = (e.prog ?? (inBlock ? bp.block.progression : null)) === 'topset' && n >= 2;
+        const prog = e.prog ?? (inBlock ? bp.block.progression : null);
+        const topset = prog === 'topset' && n >= 2;
+        // esquemas por %RM / RPE (5/3/1, Juggernaut, %RM linear, autorregulado): séries já com carga
+        const rx = isScheme(prog)
+          ? prescribe({ ...e, prog }, { week, deload, test: inBlock && bp.guide.test, rpe: rpeWeek, wave: inBlock ? bp.block.wave : null, oneRm: oneRmRef(s, e.pctOf ?? e.exId), step: loadStep(s, e.exId) >= 5 ? 2.5 : 2 })
+          : null;
+        if (rx) {
+          return {
+            exId: e.exId, target: e.reps, targetRpe: e.rpe ?? e.targetRpe ?? null, targetPct: null, targetKg: null,
+            rest: e.rest ?? 90, cue: e.note ?? '', prog, rx: rx.text,
+            ...(e.section ? { section: e.section } : {}), ...(e.optional ? { optional: true } : {}), ...(e.superset ? { superset: e.superset } : {}),
+            note: lastExerciseNote(s, e.exId),
+            sets: prescribedSets(rx, loadStep(s, e.exId) >= 5 ? 2.5 : 2),
+          };
+        }
         return {
           exId: e.exId,
           target: e.reps,
-          targetRpe: e.targetRpe ?? null,
+          targetRpe: e.targetRpe ?? e.rpe ?? null,
           targetPct: e.targetPct ?? null,
           targetKg: e.targetKg ?? null,
           rest: e.rest ?? 90,
@@ -191,7 +210,34 @@ export function workoutFromSession(ses) {
   };
 }
 
-export function openSaveAsWorkout(ses) {
+const exSig = (list) => (list ?? []).map((e) => e.exId).join('|');
+
+// Treino já salvo que corresponde à sessão: o próprio treino de origem (mesmo arquivado
+// ou numa pasta) ou outro com o mesmo nome e os mesmos exercícios.
+export function existingWorkoutFor(s, ses) {
+  const byId = ses.workoutId && s.workouts.find((w) => w.id === ses.workoutId);
+  if (byId) return byId;
+  const data = workoutFromSession(ses);
+  if (data.type !== 'strength') return null;
+  return s.workouts.find((w) => (w.type ?? 'strength') === 'strength' && w.name === ses.name && exSig(w.exercises) === exSig(data.exercises)) ?? null;
+}
+
+const folderLabel = (s, w) => (w.folderId === ARCHIVE ? 'Arquivados' : w.folderId ? `a pasta “${(s.workoutFolders ?? []).find((f) => f.id === w.folderId)?.name ?? 'pasta'}”` : 'Meus treinos');
+
+// Salvar como treino sem duplicar: se o treino já existe (inclusive arquivado), oferece
+// trazê-lo de volta para "Meus treinos" em vez de criar uma cópia.
+export async function openSaveAsWorkout(ses) {
+  const s = getState();
+  const ex = existingWorkoutFor(s, ses);
+  if (ex) {
+    const opts = [
+      ...(ex.folderId ? [{ value: 'restore', label: `Trazer “${ex.name}” para Meus treinos`, primary: true }] : []),
+      { value: 'copy', label: 'Salvar uma cópia separada mesmo assim' },
+    ];
+    const v = await choiceDialog('Treino já salvo', `“${ex.name}” já existe em ${folderLabel(s, ex)}. Não precisa duplicar.`, opts);
+    if (v === 'restore') { moveToFolder(ex.id, null); toast(`“${ex.name}” voltou para Meus treinos`); }
+    if (v !== 'copy') return;
+  }
   openModal((close) => html`<${SaveAsWorkout} ses=${ses} close=${close} />`);
 }
 
@@ -250,26 +296,40 @@ export function moveToFolder(workoutId, folderId) {
   });
 }
 
+// Apagar pasta: só a pasta (treinos voltam para "Meus treinos") ou a pasta com todos os treinos.
+// Programas que usam esses treinos também saem (o histórico de sessões é sempre mantido).
 export async function deleteFolder(folder) {
-  const ok = await confirmDialog(`Apagar a pasta "${folder.name}"? Os treinos dela voltam para "Meus treinos".`, { ok: 'Apagar pasta' });
-  if (!ok) return false;
+  const s = getState();
+  const items = s.workouts.filter((w) => w.folderId === folder.id);
+  const ids = new Set(items.map((w) => w.id));
+  const progs = (s.programs ?? []).filter((p) => p.blocks.some((b) => b.workoutIds.some((id) => ids.has(id))));
+  const v = await choiceDialog(`Apagar “${folder.name}”`, items.length ? `A pasta tem ${items.length} treino(s).${progs.length ? ` Eles fazem parte do programa “${progs.map((p) => p.name).join('”, “')}”.` : ''} O histórico de treinos feitos é mantido.` : 'A pasta está vazia.', [
+    ...(items.length ? [{ value: 'all', label: `Apagar a pasta e ${items.length === 1 ? 'o treino' : `os ${items.length} treinos`}${progs.length ? ' (e o programa)' : ''}`, danger: true }] : []),
+    { value: 'folder', label: items.length ? 'Apagar só a pasta (treinos voltam para Meus treinos)' : 'Apagar pasta', danger: !items.length },
+  ]);
+  if (!v) return false;
   update((st) => {
     st.workoutFolders = (st.workoutFolders ?? []).filter((f) => f.id !== folder.id);
-    st.workouts.forEach((w) => { if (w.folderId === folder.id) delete w.folderId; });
+    if (v === 'all') {
+      st.workouts = st.workouts.filter((w) => !ids.has(w.id));
+      const pids = new Set(progs.map((p) => p.id));
+      st.programs = (st.programs ?? []).filter((p) => !pids.has(p.id));
+      if (pids.has(st.activeProgramId)) st.activeProgramId = null;
+    } else st.workouts.forEach((w) => { if (w.folderId === folder.id) delete w.folderId; });
   });
+  toast(v === 'all' ? 'Pasta e treinos apagados' : 'Pasta apagada');
   return true;
 }
 
 // --- Programas em blocos ------------------------------------------------------------------
 
 export function installProgram(key) {
-  const { folder, workouts, program } = instantiateProgram(key, uid);
-  update((st) => {
-    (st.workoutFolders ??= []).push(folder);
-    st.workouts.push(...workouts);
-    (st.programs ??= []).push(program);
-  });
-  return program.id;
+  // modelo já instalado: reaproveita (não cria outra pasta com cópias dos treinos)
+  const inst = (getState().programs ?? []).find((p) => p.template === key);
+  if (inst) return inst.id;
+  let id = null;
+  update((st) => { id = installInto(st, key, uid); });
+  return id;
 }
 
 export function followProgram(id) {

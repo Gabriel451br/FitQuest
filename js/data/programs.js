@@ -1,133 +1,167 @@
-// Modelos de programa em blocos. Exercício: [id, séries, reps, nota, progressão?, descanso?]
-// Progressão: topset | double | linear | rpe | explosive (padrão: a do bloco).
-// "Top set + back-off" (ex.: 1×4–6 + 2×4–6) vira 3 séries com prog 'topset':
-// a 1ª é marcada como top set e as demais como back-off ao iniciar o treino.
+// Modelos de programa em blocos. Cada bloco tem um papel claro:
+//  Base        — poucos acessórios, mais compostos, reps mais altas, RPE e %RM baixos.
+//  Hipertrofia — mais exercícios, RPE alto (acessórios perto da falha), volume.
+//  Força       — básicos pesados (3–6 reps), acessórios só os necessários.
+//  Potência    — poucos exercícios: específicos + explosivos, %RM alto, clusters e speed sets.
+// Os básicos usam progressão por %RM ou RPE (ver js/periodization.js): %RM linear (+2,5%/sem),
+// 5/3/1, Juggernaut ou autorregulada (top set em RPE + back-offs, estilo John Haack).
+// Exercício: { exId, sets, reps, rest, note, prog, section, optional, superset, pct, groups, wave, supp, rpe, drop }
 
-const WEEKS_7 = [
-  { from: 1, to: 2, rpe: '6-7', text: 'Adaptação técnica, RPE 6–7: encontre as cargas de trabalho.' },
-  { from: 3, to: 4, rpe: '7-8', text: 'Progressão gradual de reps/carga, RPE 7–8.' },
-  { from: 5, to: 6, rpe: '8', text: 'Maior estímulo do bloco, sem falha nos básicos.' },
-  { from: 7, to: 7, rpe: '5-6', deload: true, text: 'Deload: séries reduzidas em ~40–50%, cargas 5–15% menores se necessário, RPE 5–6.' },
-  { from: 8, to: 8, rpe: '7-8', text: 'Opcional: consolidação / teste submáximo técnico ou transição, se estiver recuperado.' },
-];
+export const TEMPLATE_VERSION = 2;
+
+const E = (exId, sets, reps, o = {}) => ({ exId, sets, reps: String(reps), rest: 90, prog: 'double', ...o });
+// %RM linear: grupos [séries, reps, %, tipo]
+const PCT = (exId, groups, o = {}) => {
+  const gs = groups.map(([sets, reps, pct, kind = 'work', extra = {}]) => ({ sets, reps: String(reps), pct, kind, ...extra }));
+  return { exId, prog: 'pct', groups: gs, sets: gs.reduce((a, x) => a + x.sets, 0), reps: gs[0].reps, rest: 180, ...o };
+};
+const W531 = (exId, supp, o = {}) => ({ exId, prog: 'w531', supp, sets: supp ? 8 : 3, reps: '5/3/1+', rest: 180, ...o });
+const JUGG = (exId, o = {}) => ({ exId, prog: 'jugg', sets: 5, reps: '8', rest: 180, ...o });
+const AUTO = (exId, sets, reps, o = {}) => ({ exId, prog: 'haack', sets, reps: String(reps), rest: 210, drop: 10, ...o });
+
+const plan = (rows) => rows.map(([from, to, rpe, text, flag]) => ({ from, to, rpe, text, ...(flag === 'deload' ? { deload: true } : flag === 'test' ? { test: true } : {}) }));
+
+// --- Dad Strength — War Machine ------------------------------------------------------------
+
+const DAD_WARM = {
+  A: ['5 min bike leve', 'Mobilidade de quadril e tornozelo, ponte de glúteo 2×10', 'Rotação externa com banda 2×15', 'Rampa do primeiro básico: barra vazia, 40%, 55%, 70%'],
+  B: ['5 min remo leve', 'Gato-camelo, hip hinge com bastão 2×10', 'Dead hang 2×20 s', 'Rampa do terra: 40%, 55%, 70%'],
+  C: ['5 min bike', 'Prehab de joelho (o do bloco)', 'Agachamento no peso corporal com pausa 2×8', 'Rampa do primeiro básico'],
+};
 
 export const PROGRAM_TEMPLATES = {
   'dad-strength': {
+    version: TEMPLATE_VERSION,
     name: 'Dad Strength — War Machine',
     author: 'FitQuest', tagline: 'Build the body. Build the strength. Protect the family.', cover: '#d9772f',
-    level: 'Intermediário', days: 3, sessionMin: 70, goals: ['forca', 'hipertrofia', 'potencia', 'jiu-jitsu'], equipment: 'Academia completa',
+    level: 'Intermediário', days: 3, sessionMin: 65, goals: ['forca', 'hipertrofia', 'potencia', 'jiu-jitsu'], equipment: 'Academia completa',
     schedule: ['Jiu', 'A', 'Jiu', 'B', 'Jiu?', 'C', 'Off'],
-    desc: 'Build the body. Build the strength. Protect the family. Ciclo de 18–24 semanas: 3 musculações/semana (A ter, B qui, C sáb) + 2–3 Jiu-Jitsu + cardio leve. Shape de tanque de guerra, força de powerlifter, capacidades úteis no Jiu-Jitsu e joelho preparado para carga.',
+    desc: 'Ciclo de 20 semanas em 3 blocos bem diferentes: Base (6 sem, %RM baixo e poucos acessórios), Hipertrofia (8 sem, 5/3/1 + BBB e acessórios perto da falha) e Potência (6 sem, clusters, speed sets, explosivos e top sets autorregulados). 3 musculações/semana (A ter, B qui, C sáb) + 2–3 Jiu-Jitsu.',
     rules: [
-      'Qualidade antes de quantidade: aquecimentos não contam como volume efetivo.',
-      'RIR/RPE: manter 1–3 reps em reserva nos básicos. Sem falha em agachamento, terra, supino e explosivos.',
-      'Progressão sustentável: aumentar reps dentro da faixa antes de subir a carga.',
-      'Jiu-Jitsu também é carga de treino: sessões intensas pedem ajuste de volume na musculação.',
+      'Cada bloco tem um papel: Base constrói técnica e capacidade, Hipertrofia constrói massa, Potência transforma força em velocidade.',
+      'Cargas dos básicos vêm do seu 1RM (Progresso → Meus 1RM, ou estimado pelo histórico). Atualize o 1RM a cada bloco.',
+      '%RM linear: +2,5% por semana nos básicos. 5/3/1: o AMRAP da última série recalcula o 1RM estimado. Autorregulada: registre o RPE do top set.',
+      'Aquecimento não conta como volume. Sem falha em agachamento, terra, supino e explosivos.',
+      'Jiu-Jitsu também é carga: rola pesado na véspera → tire 1 série dos acessórios.',
       'Regra do joelho: dor crescente, inchaço, falseio ou perda de amplitude → interromper o estímulo e reavaliar.',
-      'Consistência supera heroísmo: não perseguir recordes com sinais de alerta.',
+    ],
+    sections: [
+      { title: 'Como ler as prescrições', items: [
+        '@65% = 65% do seu 1RM. "AMRAP 8+" = máximo de reps com técnica (mínimo 8).',
+        'Cluster 5×2 = 5 blocos de 2 reps com 10–15 s de pausa entre as reps e 2–3 min entre os blocos.',
+        'Speed set: carga leve, a barra precisa subir rápido. Perdeu velocidade, pare.',
+        'Top set @RPE 8 = série pesada deixando ~2 reps na reserva; back-off = mesma reps com ~10% menos carga.',
+      ] },
     ],
     blocks: [
       {
-        name: 'Bloco 1 — Preparação & Strength', goal: 'forca', weeks: 7, progression: 'topset', weekPlan: WEEKS_7,
-        objective: 'Reestabelecer consistência, consolidar padrões básicos, desenvolver força geral e tolerância progressiva do joelho. Volume enxuto; foco em técnica e progressão.',
-        criteria: 'Avançar: execução consistente dos básicos, boa tolerância ao volume, joelho sem sinais de piora e recuperação compatível com o Jiu-Jitsu.',
+        name: 'Bloco 1 — Base', goal: 'preparacao', weeks: 6, progression: 'pct',
+        weekPlan: plan([
+          [1, 1, '6', 'Base: cargas em %RM baixas, técnica perfeita e 3–4 reps na reserva.'],
+          [2, 3, '6-7', '+2,5% por semana nos básicos; acessórios em RPE 7.'],
+          [4, 5, '7-8', 'Semanas mais pesadas da base — ainda sem falha.'],
+          [6, 6, '5', 'Deload: 60% das séries e −10% de carga.', 'deload'],
+        ]),
+        objective: 'Consolidar os padrões (agachamento, terra, supino, desenvolvimento), criar capacidade de trabalho e preparar o joelho. Poucos acessórios, reps 6–10 nos compostos, 60–72% do 1RM, RPE 6–7.',
+        criteria: 'Avançar quando os básicos estiverem tecnicamente sólidos em ~72% e o joelho tolerar bem o volume.',
         workouts: [
-          { name: 'B1 · A — Power & Strength', exercises: [
-            ['spanish-squat', 2, '12-15', 'Prehab: controle e tolerância do quadríceps; sem dor relevante.', 'double', 60],
-            ['power-clean', 3, '2-3', 'Explosivo, carga leve/moderada; parar se a velocidade cair. Power clean só com técnica e recepção liberadas — senão clean pull.', 'explosive', 120],
-            ['zercher', 3, '5-6', 'RPE 6–8; postura sólida e amplitude tolerada.', 'topset', 150],
-            ['supino-pausado', 3, '4-6', 'Top set + 2 back-offs (1×4–6 + 2×4–6). RPE 7–8 no top set; pausa de 2–3 s.', 'topset', 180],
-            ['desenvolvimento', 2, '6-8', 'RPE 7–8; sem falha.', 'double', 120],
-            ['rosca-scott', 2, '8-12', 'RPE 8–9.', 'double', 75],
-            ['triceps-polia', 2, '8-12', 'RPE 8–9.', 'double', 75],
+          { name: 'B1 · A — Base: Agachamento + Supino', sessionMin: 55, warmup: DAD_WARM.A, exercises: [
+            E('spanish-squat', 2, '12-15', { note: 'Prehab: controle do quadríceps, sem dor relevante.', rest: 60 }),
+            PCT('agachamento', [[4, 8, 62.5]], { note: 'Excêntrico de 3 s, amplitude tolerada.' }),
+            PCT('supino-reto', [[4, 8, 62.5]], { note: 'Escápulas travadas, pausa curta no peito.' }),
+            E('remada-apoio', 3, '10-12', { note: 'RPE 7.' }),
+            E('desenvolvimento-halter', 3, '10-12', { note: 'RPE 7.' }),
           ] },
-          { name: 'B1 · B — Deadlift & Grip', exercises: [
-            ['cadeira-extensora', 2, '12-15', 'Prehab: extensora leve (se indicada); amplitude e carga conforme avaliação/tolerância.', 'double', 60],
-            ['levantamento-terra', 3, '3-5', 'Top set + 2 back-offs (1×3–5 + 2×3–5). Top set RPE 7–8; back-offs 8–12% mais leves.', 'topset', 180],
-            ['barra-neutra', 3, '5-8', 'Assistida ou com carga para manter técnica.', 'double', 120],
-            ['chest-press', 2, '8-12', 'RPE 7–9.', 'double', 90],
-            ['encolhimento', 3, '8-12', 'Com halteres; pausa breve no topo; sem girar os ombros.', 'double', 75],
-            ['elevacao-lateral', 3, '10-15', 'Controle e amplitude confortável.', 'double', 60],
-            ['plate-pinch', 2, '20-30', 'Segundos. Pinça forte, sem dor nos dedos/punhos.', 'double', 60],
+          { name: 'B1 · B — Base: Terra + Desenvolvimento', sessionMin: 55, warmup: DAD_WARM.B, exercises: [
+            E('cadeira-extensora', 2, '12-15', { note: 'Prehab: amplitude e carga conforme tolerância.', rest: 60 }),
+            PCT('levantamento-terra', [[4, 6, 62.5]], { note: 'Reinicie cada rep no chão. Coluna neutra.' }),
+            PCT('desenvolvimento', [[3, 8, 60]], { note: 'Glúteo e abdômen travados.' }),
+            E('barra-neutra', 4, '6-8', { note: 'Assistida se precisar. RPE 7.', rest: 120 }),
+            E('farmer-walk', 3, '30m', { note: 'Pegada que não abre no fim do round.', rest: 90 }),
           ] },
-          { name: 'B1 · C — Hypertrophy & Armor', exercises: [
-            ['step-down', 2, '6-8', 'Prehab, por perna. Somente se liberado e sem sintomas; controle do joelho.', 'double', 60],
-            ['agachamento', 3, '6-8', 'Top set + 2 back-offs (1×6–8 + 2×6–8). Top set RPE 7; back-offs mais leves.', 'topset', 180],
-            ['supino-inclinado-halter', 3, '6-10', 'RPE 7–9.', 'double', 120],
-            ['puxada-neutra', 2, '8-12', 'Controle escapular.', 'double', 90],
-            ['hip-thrust', 2, '8-12', 'Pausa no topo, sem hiperextensão lombar.', 'double', 90],
-            ['mesa-flexora', 2, '10-15', 'Leg curl: controle excêntrico.', 'double', 75],
-            ['rosca-inversa', 2, '10-15', 'Punhos neutros.', 'double', 60],
-            ['panturrilha-pe', 3, '8-15', 'Amplitude tolerada, pausa no alongamento.', 'double', 60],
-            ['rosca-punho', 2, '12-20', 'Wrist curl, sem irritação de punho/cotovelo.', 'double', 60],
+          { name: 'B1 · C — Base: Unilateral + Posterior', sessionMin: 55, warmup: DAD_WARM.C, finisher: ['Caminhada rápida ou bike leve 15–20 min (Z2)'], exercises: [
+            E('step-down', 2, '8-10', { note: 'Prehab, por perna. Só se liberado e sem sintomas.', rest: 60 }),
+            E('zercher', 3, '8-10', { note: 'RPE 6–7; postura sólida.', rest: 150 }),
+            E('supino-inclinado-halter', 3, '10-12', { note: 'RPE 7.' }),
+            E('puxada-neutra', 3, '10-12', { note: 'Controle escapular. RPE 7.' }),
+            E('hip-thrust', 3, '10-12', { note: 'Pausa no topo.' }),
           ] },
         ],
       },
       {
-        name: 'Bloco 2 — Hypertrophy & Armor', goal: 'hipertrofia', weeks: 7, progression: 'double', weekPlan: WEEKS_7,
-        objective: 'Aumentar massa muscular com prioridade estética em antebraços, braços, trapézio, glúteos e panturrilhas. Manter os básicos com volume suficiente para não perder força. Comece pela parte inferior das faixas e suba se recuperação e desempenho estiverem bons.',
-        criteria: 'Avançar: ganhos ou manutenção de força, volume de hipertrofia bem tolerado e liberação/avaliação para as atividades explosivas planejadas.',
-        volumeTargets: 'Séries/semana — Peitoral 8–12 · Costas 10–14 · Deltoides 8–12 · Bíceps 6–10 · Tríceps 6–10 · Antebraço 8–14 · Trapézio 6–10 · Quadríceps 6–10 · Posteriores 6–10 · Glúteos 8–12 · Panturrilhas 8–12.',
+        name: 'Bloco 2 — Hipertrofia & Armor', goal: 'hipertrofia', weeks: 8, progression: 'double',
+        weekPlan: plan([
+          [1, 3, '8', '5/3/1 nos básicos (semanas 5s, 3s, 5/3/1) + acessórios em RPE 8–9.'],
+          [4, 4, '5-6', 'Deload do ciclo 5/3/1: 40/50/60% e acessórios pela metade.', 'deload'],
+          [5, 7, '8-9', 'Segundo ciclo: 1RM estimado atualizado pelos AMRAPs; última série dos acessórios perto da falha.'],
+          [8, 8, '5-6', 'Deload antes do bloco de potência.', 'deload'],
+        ]),
+        objective: 'Máxima massa muscular: mais exercícios e mais séries, acessórios em RPE 8–9 (última série perto da falha). Básicos em 5/3/1 com BBB/FSL para volume sem perder força. Prioridade: antebraços, braços, trapézio, glúteos e panturrilhas.',
+        volumeTargets: 'Séries/semana — Peitoral 10–14 · Costas 12–16 · Deltoides 10–14 · Bíceps 8–12 · Tríceps 8–12 · Antebraço 8–14 · Trapézio 8–12 · Quadríceps 8–12 · Posteriores 8–10 · Glúteos 8–12 · Panturrilhas 8–12.',
+        criteria: 'Avançar com força mantida ou maior nos AMRAPs, volume bem tolerado e liberação para atividades explosivas.',
         workouts: [
-          { name: 'B2 · A — Upper strength + braços', exercises: [
-            ['prehab-joelho', 1, '5-8', 'Minutos. Exercício 1 + exercício 2 conforme avaliação e resposta do joelho.', 'double', 0],
-            ['zercher', 2, '6-8', 'Manutenção, RPE 6–7.', 'rpe', 150],
-            ['supino-pausado', 3, '5-6', 'RPE 7–8; manter padrão de força.', 'rpe', 180],
-            ['desenvolvimento', 2, '6-10', 'RPE 7–8.', 'double', 120],
-            ['remada-apoio', 3, '8-12', 'Remada com apoio ou remada baixa (puxada horizontal).', 'double', 90],
-            ['rosca-scott', 3, '8-12', 'RPE 8–9.', 'double', 75],
-            ['triceps-polia', 3, '8-12', 'RPE 8–9.', 'double', 75],
-            ['elevacao-lateral', 2, '12-20', 'RPE 8–9.', 'double', 60],
+          { name: 'B2 · A — Upper + braços', sessionMin: 75, warmup: DAD_WARM.A, short: 'Sem tempo: corte o supino inclinado e o superset de braço.', exercises: [
+            W531('supino-reto', 'bbb', { note: '5/3/1 + BBB 5×10 @50% do TM.', section: 'Básico' }),
+            E('desenvolvimento', 3, '8-10', { note: 'RPE 8.', section: 'Hipertrofia', rest: 120 }),
+            E('remada-apoio', 4, '8-12', { note: 'RPE 8–9.', section: 'Hipertrofia' }),
+            E('supino-inclinado-halter', 3, '8-12', { note: 'RPE 9 na última.', section: 'Hipertrofia', optional: true }),
+            E('elevacao-lateral', 4, '12-20', { note: 'RPE 9, descida lenta.', section: 'Armor', rest: 60 }),
+            E('rosca-scott', 3, '8-12', { note: 'Superset com tríceps. RPE 9.', section: 'Armor', superset: 'S1', optional: true }),
+            E('triceps-polia', 3, '8-12', { note: 'Superset com rosca Scott.', section: 'Armor', superset: 'S1', optional: true }),
+            E('rosca-punho', 2, '15-20', { note: 'Sem irritar punho/cotovelo.', section: 'Armor', rest: 60 }),
           ] },
-          { name: 'B2 · B — Posterior, costas, trapézio e pegada', exercises: [
-            ['prehab-joelho', 1, '5-8', 'Minutos. Dose leve; não gerar fadiga.', 'double', 0],
-            ['levantamento-terra', 2, '3-5', 'Manutenção, RPE 6–7; reduzir se atrapalhar o Jiu-Jitsu.', 'rpe', 180],
-            ['barra-neutra', 3, '6-10', 'Progressão por reps/carga.', 'double', 120],
-            ['remada-curvada', 3, '8-12', 'Priorizar meio das costas.', 'double', 90],
-            ['encolhimento', 3, '8-12', 'Trapézio.', 'double', 75],
-            ['rosca-martelo', 3, '8-12', 'Braquial/braquiorradial.', 'double', 75],
-            ['plate-pinch', 3, '20-40', 'Segundos. Plate pinch ou pegada de toalha: alternar a cada bloco; não exagerar no volume.', 'double', 60],
-            ['panturrilha-sentado', 3, '10-20', 'Ênfase em sóleo.', 'double', 60],
+          { name: 'B2 · B — Posterior, costas e pegada', sessionMin: 75, warmup: DAD_WARM.B, short: 'Sem tempo: corte o face pull e a panturrilha.', exercises: [
+            W531('levantamento-terra', 'fsl', { note: '5/3/1 + FSL 5×5 na % da 1ª série.', section: 'Básico' }),
+            E('barra-neutra', 4, '6-10', { note: 'RPE 8; com carga se ficar fácil.', section: 'Hipertrofia', rest: 120 }),
+            E('remada-curvada', 3, '8-12', { note: 'Meio das costas. RPE 8–9.', section: 'Hipertrofia' }),
+            E('encolhimento', 4, '10-12', { note: 'Pausa 1 s no topo. RPE 9.', section: 'Armor', rest: 75 }),
+            E('rosca-martelo', 3, '10-12', { note: 'RPE 9.', section: 'Armor', rest: 75 }),
+            E('face-pull', 3, '15-20', { note: 'Saúde do ombro.', section: 'Armor', rest: 60, optional: true }),
+            E('plate-pinch', 3, '20-40', { note: 'Segundos. Pinça forte.', section: 'Armor', rest: 60 }),
+            E('panturrilha-sentado', 4, '10-20', { note: 'Ênfase em sóleo.', section: 'Armor', rest: 60, optional: true }),
           ] },
-          { name: 'B2 · C — Lower & Armor', exercises: [
-            ['prehab-joelho', 1, '5-8', 'Minutos. Selecionar variações toleradas.', 'double', 0],
-            ['agachamento', 3, '6-10', 'RPE 7–8.', 'double', 150],
-            ['supino-inclinado-halter', 3, '8-12', 'RPE 8.', 'double', 120],
-            ['puxada-neutra', 2, '8-12', 'RPE 8.', 'double', 90],
-            ['hip-thrust', 3, '8-12', 'Glúteos.', 'double', 90],
-            ['mesa-flexora', 3, '10-15', 'Leg curl — posteriores.', 'double', 75],
-            ['rosca-inversa', 3, '10-15', 'Antebraço/braquiorradial.', 'double', 60],
-            ['triceps-frances', 2, '10-15', 'Tríceps acima da cabeça ou polia (2–3 séries): longa porção, variante confortável.', 'double', 75],
-            ['panturrilha-pe', 4, '8-15', 'Progressão dupla.', 'double', 60],
-            ['rosca-punho', 2, '12-20', 'Wrist curl ou extensão de punho; alternar ênfase flexores/extensores.', 'double', 60],
+          { name: 'B2 · C — Lower & Armor', sessionMin: 80, warmup: DAD_WARM.C, short: 'Sem tempo: corte a rosca inversa e o tríceps francês.', exercises: [
+            E('prehab-joelho', 1, '5-8', { note: 'Minutos. Variações toleradas.', rest: 0 }),
+            W531('agachamento', 'fsl', { note: '5/3/1 + FSL 5×5. Joelho manda.', section: 'Básico' }),
+            E('leg-press', 3, '10-15', { note: 'RPE 8–9, sem travar o joelho.', section: 'Hipertrofia', rest: 120 }),
+            E('hip-thrust', 3, '8-12', { note: 'Pausa no topo. RPE 9.', section: 'Hipertrofia' }),
+            E('mesa-flexora', 3, '10-15', { note: 'Excêntrico controlado. RPE 9.', section: 'Hipertrofia', rest: 75 }),
+            E('puxada-neutra', 3, '10-12', { note: 'RPE 8.', section: 'Hipertrofia' }),
+            E('rosca-inversa', 3, '12-15', { note: 'Braquiorradial.', section: 'Armor', rest: 60, optional: true }),
+            E('triceps-frances', 3, '10-15', { note: 'Cabeça longa.', section: 'Armor', rest: 75, optional: true }),
+            E('panturrilha-pe', 4, '8-15', { note: 'Pausa no alongamento.', section: 'Armor', rest: 60 }),
           ] },
         ],
       },
       {
-        name: 'Bloco 3 — Power & Combat Athlete', goal: 'potencia', weeks: 7, progression: 'rpe', weekPlan: WEEKS_7,
-        objective: 'Converter força em produção rápida de força, mantendo massa e força geral. Baixo volume de explosivos, execução descansada e técnica impecável. Exige liberação para saltos, aterrissagens, sprints, pivôs e mudanças de direção (histórico de LCA/menisco: não introduzir impacto só porque o joelho está sem dor no dia a dia).',
-        criteria: 'Fim do bloco 3: revisar medidas, força submáxima, qualidade dos movimentos rápidos e desempenho no tatame; escolher novo ciclo com base nos dados.',
+        name: 'Bloco 3 — Power & Combat Athlete', goal: 'potencia', weeks: 6, progression: 'haack',
+        weekPlan: plan([
+          [1, 1, '7', 'Potência: top sets @RPE 7, clusters e explosivos descansados.'],
+          [2, 3, '8', 'Top set @RPE 8 — a carga vem do 1RM estimado do dia. Clusters +2,5%.'],
+          [4, 5, '9', 'Pico: top set @RPE 9, sem falha. Explosivos com intenção máxima.'],
+          [6, 6, '9', 'Teste/transição: top single @9 nos básicos (ou deload se acumulou cansaço) e medidas.', 'test'],
+        ]),
+        objective: 'Converter força em produção rápida de força: poucos exercícios, específicos (clean, saltos, push press) e só os acessórios necessários (pegada, puxada). %RM alto (75–90%), clusters e speed sets. Exige liberação para saltos e aterrissagens.',
+        criteria: 'Fim do ciclo: compare top sets e 1RM estimados com o bloco 1 e escolha o próximo ciclo pelos dados.',
         workouts: [
-          { name: 'B3 · A — Power', exercises: [
-            ['prehab-joelho', 1, '5-8', 'Minutos. Prehab antes do principal.', 'double', 0],
-            ['power-clean', 4, '2-3', 'Clean pull ou power clean (só com técnica e recepção liberadas).', 'explosive', 150],
-            ['zercher', 3, '3-5', 'Força submáxima, sem falha.', 'rpe', 180],
-            ['supino-pausado', 3, '3-5', 'Manter força.', 'rpe', 180],
-            ['desenvolvimento', 2, '5-6', 'RPE 7–8.', 'rpe', 120],
+          { name: 'B3 · A — Power + Agachamento', sessionMin: 55, warmup: DAD_WARM.A, exercises: [
+            E('prehab-joelho', 1, '5-8', { note: 'Minutos.', rest: 0 }),
+            PCT('power-clean', [[5, 2, 70, 'speed']], { note: 'Clean pull ou power clean (só com técnica liberada). Parar se a velocidade cair.', rest: 120 }),
+            AUTO('agachamento', 4, '3', { note: 'Top set + 3 back-offs −10%.' }),
+            AUTO('supino-pausado', 4, '2-3', { note: 'Pausa de 2 s no peito.', drop: 8 }),
           ] },
-          { name: 'B3 · B — Deadlift & Grip', exercises: [
-            ['prehab-joelho', 1, '5-8', 'Minutos.', 'double', 0],
-            ['levantamento-terra', 3, '2-3', 'Carga submáxima; intenção de acelerar mantendo controle.', 'explosive', 180],
-            ['barra-neutra', 3, '4-6', 'Pode adicionar carga se forte e tecnicamente sólido.', 'double', 150],
-            ['remada-baixa', 2, '6-10', 'Remada ou puxada: manter costas.', 'double', 90],
-            ['plate-pinch', 3, '15-30', 'Segundos. Plate pinch / pegada de kimono — isometria de alta qualidade.', 'double', 60],
+          { name: 'B3 · B — Terra cluster + Pegada', sessionMin: 50, warmup: DAD_WARM.B, finisher: ['Sprints 4×40 m (descanso completo) — só se liberado'], exercises: [
+            PCT('levantamento-terra', [[5, 2, 80, 'cluster']], { note: 'Cluster: 2 reps com 10–15 s entre elas; 3 min entre os blocos.' }),
+            E('barra-neutra', 4, '3-5', { note: 'Com carga, RPE 8.', rest: 150 }),
+            E('farmer-walk', 4, '20m', { note: 'Pesado e rápido — pegada de luta.', rest: 120 }),
+            E('plate-pinch', 3, '15-30', { note: 'Segundos. Isometria de alta qualidade.', rest: 60 }),
           ] },
-          { name: 'B3 · C — Squat & Armor', exercises: [
-            ['prehab-joelho', 1, '5-8', 'Minutos.', 'double', 0],
-            ['agachamento', 3, '3-5', 'Força submáxima; amplitude tolerada.', 'rpe', 180],
-            ['hip-thrust', 3, '5-8', 'Intenção de acelerar a subida, sem perder posição.', 'explosive', 120],
-            ['supino-inclinado-halter', 2, '6-10', 'Manutenção de hipertrofia.', 'double', 120],
-            ['mesa-flexora', 2, '8-12', 'Leg curl — posterior e controle do joelho.', 'double', 75],
+          { name: 'B3 · C — Explosivos + Push press', sessionMin: 50, warmup: DAD_WARM.C, exercises: [
+            E('salto-vertical', 3, '5', { note: 'Pliometria: máximo de altura, aterrissagem macia com joelhos levemente flexionados. Só se liberado.', prog: 'explosive', rest: 90 }),
+            PCT('agachamento', [[6, 2, 60, 'speed']], { note: 'Speed sets: a barra sobe rápido. 60 s entre as séries.', rest: 60 }),
+            AUTO('push-press', 3, '3', { note: 'Top set + 2 back-offs.' }),
+            E('flexao-pliometrica', 4, '5', { note: 'Mãos saem do chão. Parou de explodir, pare.', prog: 'explosive', rest: 90 }),
+            E('hip-thrust', 3, '5', { note: 'Subida explosiva, descida controlada.', prog: 'explosive', rest: 120 }),
           ] },
         ],
       },
@@ -135,99 +169,174 @@ export const PROGRAM_TEMPLATES = {
   },
 };
 
+// --- Tronco de Árvore — Strongman × Jiu-Jítsu ---------------------------------------------
 
-// --- Tronco de Árvore — Strongman × Jiu-Jítsu -------------------------------------------
-// Cada item: [exId, nota, [rx bloco 1, bloco 2, bloco 3], descanso, opções]
-// rx no formato do protocolo: "4×6–8", "3×30 m", "2×15–20 /direção", "3 rounds"…
-const RIR_WEEKS = (last) => [
-  { from: 1, to: 1, rpe: '7', text: 'RIR 3: termine cada série com 3 reps na reserva.' },
-  { from: 2, to: 2, rpe: '8', text: 'RIR 2: progressão de carga/reps.' },
-  { from: 3, to: 3, rpe: '9', text: 'RIR 1: semana mais dura do bloco — séries duras, mas limpas.' },
-  last === 'test'
-    ? { from: 4, to: 4, rpe: '9', test: true, text: 'Semana 12 — testes de 3–5RM sem falha absoluta: terra, agachamento (só se o joelho estiver ok), militar, barra fixa com carga, farmer walk 40 m e medidas.' }
-    : { from: 4, to: 4, rpe: '6', deload: true, text: 'Deload: metade das séries nos básicos e acessórios, RIR 4, mantendo os movimentos.' },
+const TRONCO_WARM = {
+  A: ['5 min bike ou remo leve', 'Ponte de glúteo 2×10, gato-camelo, rotação torácica no chão 8/lado', 'Dead hang 2×20 s e rotação externa de ombro com banda 2×15', 'Rampa do terra: barra vazia, 40%, 60%, 80% da carga do dia'],
+  B: ['5 min bike leve', 'Ponte de glúteo 2×10, agachamento no peso corporal com pausa 2×8, mobilidade de tornozelo', 'Rotação externa de ombro com banda 2×15, dead hang 2×20 s', 'Rampa do agachamento: barra vazia, 40%, 60%, 80% da carga do dia'],
+  C: ['5 min remo ou bike', 'Ponte de glúteo 2×12, rotação torácica, mobilidade de quadril sem torcer o joelho', 'Rampa do push press: barra vazia, 40%, 60%, 80%', 'Dead hang 2×20 s'],
+};
+const DAY = { A: 'Puxada pesada + Trapézio', B: 'Pernas + Ombros + Puxada vertical', C: 'Strongman funcional + Hipertrofia' };
+const F = 'Força principal';
+const H = (x) => `Hipertrofia · ${x}`;
+const J = 'Funcional · jiu';
+const T = 'Tronco de árvore';
+
+const TRONCO_BLOCKS = [
+  {
+    name: 'Bloco 1 — Base', goal: 'preparacao', weeks: 4, progression: 'pct',
+    weekPlan: plan([
+      [1, 1, '6', 'Base: RIR 4 — cargas em %RM baixas, técnica e ROM.'],
+      [2, 2, '6-7', '+2,5% nos básicos; RIR 3–4.'],
+      [3, 3, '7', 'Semana mais dura da base: RIR 3, ainda longe da falha.'],
+      [4, 4, '5', 'Deload: 60% das séries, −10% de carga.', 'deload'],
+    ]),
+    objective: 'Construir a base: compostos com reps mais altas (6–10) a 57–65% do 1RM subindo 2,5%/semana, poucos acessórios e RPE 6–7. Joelho recuperando carga com excêntrico controlado; pescoço e pegada aprendendo a técnica.',
+    criteria: 'Avance após o deload se as cargas subiram, o joelho passa no teste das 24 h e o jiu está rendendo.',
+    days: {
+      A: { time: 60, short: '45 min: faça só os 2 básicos, remada e farmer.', finisher: ['Cardio leve 10–15 min (bike/caminhada, Z2) se não tiver jiu no dia'], exercises: [
+        PCT('levantamento-terra', [[4, 8, 60]], { section: F, note: 'Do chão, reiniciando a cada rep (sem quicar). Coluna neutra.' }),
+        PCT('supino-reto', [[4, 10, 60]], { section: F, note: 'Escápulas travadas, pausa curta no peito.' }),
+        E('remada-curvada', 3, '10', { section: H('costas'), note: 'Pronada, tronco a ~45°. RPE 7.', rest: 120 }),
+        E('encolhimento', 3, '12', { section: H('trapézio'), note: 'Pausa de 2 s no topo. RPE 7.', rest: 90, optional: true }),
+        E('farmer-walk', 3, '30m', { section: J, note: 'Postura alta, passos curtos. Carga moderada.', rest: 120 }),
+        E('pescoco', 2, '15', { section: T, note: '4 direções, lento, nunca falha.', rest: 60 }),
+      ] },
+      B: { time: 60, short: '45 min: os 3 básicos + pallof.', exercises: [
+        PCT('agachamento', [[4, 8, 57.5]], { section: F, note: 'Excêntrico de 3 s, profundidade onde o joelho está 100% confortável. Sem torção.' }),
+        PCT('desenvolvimento', [[4, 8, 60]], { section: F, note: 'Militar em pé. Glúteo e abdômen travados.' }),
+        E('barra-fixa', 4, '6-8', { section: F, note: 'Peso corporal (ou assistida). RPE 7, sem kipping.', rest: 150 }),
+        E('rdl', 3, '10', { section: H('posterior'), note: 'Quadril para trás, barra rente à perna. RPE 6–7.', rest: 120, optional: true }),
+        E('pallof', 3, '10', { section: J, note: 'Anti-rotação, 10/lado.', rest: 60 }),
+        E('pescoco-iso', 3, '10s', { section: T, note: 'Isometria 10 s por direção.', rest: 45 }),
+      ] },
+      C: { time: 60, short: '45 min: push press, rack pull e suitcase.', exercises: [
+        PCT('push-press', [[4, 6, 60]], { section: F, note: 'Dip curto, explosão de pernas, trava em cima.' }),
+        E('rack-pull', 3, '8', { section: F, note: 'RPE 7. Se o jiu de sexta foi pesado, RPE 6.', rest: 180 }),
+        E('paralelas', 3, '10', { section: H('peito'), note: 'Peso corporal; desce até 90°.', rest: 120 }),
+        E('hip-thrust', 3, '10', { section: H('glúteo'), note: 'Pausa 1 s no topo.', rest: 120, optional: true }),
+        E('suitcase-carry', 3, '30m', { section: J, note: 'Não deixa o tronco inclinar. 30 m/lado.', rest: 90 }),
+        E('panturrilha-leg', 3, '15', { section: T, note: 'Pausa em cima, alonga embaixo.', rest: 60 }),
+      ] },
+    },
+  },
+  {
+    name: 'Bloco 2 — Hipertrofia', goal: 'hipertrofia', weeks: 4, progression: 'double', wave: 8,
+    weekPlan: plan([
+      [1, 1, '8', 'Juggernaut onda de 8s — acumulação (5×8 @65% TM). Acessórios RIR 2.'],
+      [2, 2, '8-9', 'Intensificação (3×8 @72,5% TM). Acessórios RIR 1–2.'],
+      [3, 3, '9', 'Realização: AMRAP @80% TM (padrão 8). Acessórios até RIR 0–1.'],
+      [4, 4, '6', 'Deload: 40/50/60% TM nos básicos e metade dos acessórios.', 'deload'],
+    ]),
+    objective: 'Máximo de massa: mais exercícios (10–13 por dia), acessórios em RPE 8–9 com a última série perto da falha, supersets de braço. Básicos na onda de 8s do Juggernaut — o AMRAP da semana 3 atualiza o training max.',
+    criteria: 'Avance se o AMRAP bateu o padrão (8+), as medidas subiram e o joelho segue tranquilo.',
+    days: {
+      A: { time: 80, short: '60 min: mantenha os básicos, tire 1 série dos acessórios e o superset de braço.', exercises: [
+        JUGG('levantamento-terra', { section: F, note: 'Do chão, sem quicar.' }),
+        JUGG('supino-reto', { section: F, note: 'Escápulas travadas.' }),
+        E('remada-curvada', 3, '8-10', { section: H('costas, trapézio, ombros'), note: 'RPE 8–9.', rest: 150 }),
+        E('encolhimento', 4, '10-12', { section: H('costas, trapézio, ombros'), note: 'Pausa de 2 s no topo. RPE 9.', rest: 120 }),
+        E('elevacao-lateral', 3, '12-15', { section: H('costas, trapézio, ombros'), note: 'Descida de 2–3 s. RPE 9.', rest: 90 }),
+        E('farmer-walk', 4, '30m', { section: J, note: 'Mais pesado que no bloco 1.', rest: 120 }),
+        E('rosca-direta', 3, '8-12', { section: T, note: 'Superset com tríceps testa. RPE 9.', rest: 90, optional: true, superset: 'S1' }),
+        E('triceps-testa', 3, '8-12', { section: T, note: 'Superset com rosca direta.', rest: 90, optional: true, superset: 'S1' }),
+        E('panturrilha-pe', 4, '12-15', { section: T, note: 'Alonga 2 s embaixo, pausa 1 s em cima.', rest: 90 }),
+        E('pescoco', 2, '15-20', { section: T, note: '4 direções, lento, nunca falha.', rest: 60 }),
+      ] },
+      B: { time: 85, short: '65 min: tire o encolhimento com halteres e o superset de braço.', exercises: [
+        JUGG('agachamento', { section: F, note: 'Joelho manda: se a realização doer, pare no padrão.' }),
+        JUGG('desenvolvimento', { section: F, note: 'Militar em pé.' }),
+        E('barra-fixa', 4, '6-10', { section: F, note: 'Com carga se passar de 10. RPE 8.', rest: 150 }),
+        E('rdl', 3, '8-10', { section: H('posterior, ombro, trapézio'), note: 'RPE 8.', rest: 150 }),
+        E('face-pull', 3, '15-20', { section: H('posterior, ombro, trapézio'), note: 'Rotação externa no fim.', rest: 60 }),
+        E('encolhimento', 3, '12-15', { section: H('posterior, ombro, trapézio'), note: 'Halteres, pegada neutra. RPE 9.', rest: 90, optional: true }),
+        E('pallof', 3, '12', { section: J, note: '12/lado + prancha lateral 40 s.', rest: 60 }),
+        E('rosca-martelo', 3, '10-12', { section: T, note: 'Superset com tríceps corda. RPE 9.', rest: 90, optional: true, superset: 'S1' }),
+        E('triceps-corda', 3, '10-12', { section: T, note: 'Superset com rosca martelo.', rest: 90, optional: true, superset: 'S1' }),
+        E('panturrilha-sentado', 4, '12-20', { section: T, note: 'Sóleo.', rest: 90 }),
+        E('pescoco-iso', 4, '10s', { section: T, note: 'Isometria 10 s por direção.', rest: 45 }),
+      ] },
+      C: { time: 90, short: '65 min: tire a remada unilateral, o leg curl e o superset de braço.', exercises: [
+        JUGG('push-press', { section: F, note: 'Estilo strongman.' }),
+        E('rack-pull', 3, '6-8', { section: F, note: 'RPE 8.', rest: 180 }),
+        E('paralelas', 4, '8-10', { section: H('peito, pernas, glúteo'), note: 'Com carga. RPE 9.', rest: 150 }),
+        E('leg-press', 3, '12-15', { section: H('peito, pernas, glúteo'), note: 'RPE 9, sem travar o joelho.', rest: 120 }),
+        E('hip-thrust', 3, '8-12', { section: H('peito, pernas, glúteo'), note: 'Pausa 1 s no topo. RPE 9.', rest: 120 }),
+        E('remada-unilateral', 3, '10-12', { section: H('peito, pernas, glúteo'), note: 'RPE 9.', rest: 90, optional: true }),
+        E('mesa-flexora', 3, '10-15', { section: H('peito, pernas, glúteo'), note: 'Excêntrico de 3 s. RPE 9.', rest: 90, optional: true }),
+        E('suitcase-carry', 4, '30m', { section: J, note: '30 m/lado.', rest: 90 }),
+        E('circuito-antebraco', 3, '1', { section: J, note: 'Dead hang 30–60 s + rosca de punho 15–20 + inversa 12–15 (1 round).', rest: 60 }),
+        E('rosca-inclinada', 3, '10-15', { section: T, note: 'Superset com tríceps francês.', rest: 90, optional: true, superset: 'S1' }),
+        E('triceps-frances', 3, '10-15', { section: T, note: 'Superset com rosca inclinada.', rest: 90, optional: true, superset: 'S1' }),
+        E('panturrilha-leg', 4, '15-20', { section: T, note: 'Pausa de 1 s em cima.', rest: 75 }),
+        E('pescoco', 2, '20', { section: T, note: 'Lento, sem falha.', rest: 60 }),
+      ] },
+    },
+  },
+  {
+    name: 'Bloco 3 — Força Strongman', goal: 'forca', weeks: 4, progression: 'haack',
+    weekPlan: plan([
+      [1, 1, '7', 'Autorregulada: top set @RPE 7 (carga pelo 1RM estimado) + back-offs −10%.'],
+      [2, 2, '8', 'Top set @RPE 8. Registre o RPE: o 1RM estimado se ajusta.'],
+      [3, 3, '9', 'Top set @RPE 9 — o mais pesado do ciclo, sem falha.'],
+      [4, 4, '9', 'Semana 12 — testes de 3–5RM sem falha absoluta: terra, agachamento (só se o joelho estiver ok), militar, barra com carga, farmer 40 m e medidas.', 'test'],
+    ]),
+    objective: 'Força bruta e específica: poucos exercícios (5 por dia), básicos pesados em 3–5 reps no estilo John Haack (top set em RPE + back-offs), carregadas até 40 m com carga máxima técnica e só os acessórios necessários (face pull, pegada, pescoço).',
+    criteria: 'Fim do ciclo: compare os testes e as medidas da semana 12 e recomece com o 1RM novo.',
+    days: {
+      A: { time: 60, short: '45 min: terra, supino e farmer.', exercises: [
+        AUTO('levantamento-terra', 4, '3', { section: F, note: 'Top set + 3 back-offs.' }),
+        AUTO('supino-reto', 4, '4', { section: F, note: 'Top set + 3 back-offs −8%.', drop: 8 }),
+        E('encolhimento', 4, '6-8', { section: H('trapézio'), note: 'Pesado + hold de 20 s na última.', rest: 120 }),
+        E('farmer-walk', 4, '40m', { section: J, note: 'Carga máxima técnica.', rest: 150 }),
+        E('pescoco', 2, '12-15', { section: T, note: '+ isometria 20 s.', rest: 60 }),
+      ] },
+      B: { time: 60, short: '45 min: os 3 básicos.', exercises: [
+        AUTO('agachamento', 4, '3', { section: F, note: 'Só se o joelho passar no teste das 24 h; senão leg press pesado.' }),
+        AUTO('desenvolvimento', 4, '3', { section: F, note: 'Top set + 3 back-offs.' }),
+        E('barra-fixa', 5, '3-5', { section: F, note: 'Com carga, RPE 8. Use cinto.', rest: 180 }),
+        E('face-pull', 3, '12-15', { section: H('ombro'), note: 'Ombro saudável para o jiu.', rest: 60 }),
+        E('pescoco-iso', 5, '10s', { section: T, note: 'Isometria 10 s por direção.', rest: 45 }),
+      ] },
+      C: { time: 60, short: '45 min: push press, rack pull e suitcase.', exercises: [
+        AUTO('push-press', 4, '2-3', { section: F, note: 'Top set + 3 back-offs.' }),
+        AUTO('rack-pull', 3, '3', { section: F, note: 'Top set + 2 back-offs. Jiu pesado na sexta → RPE 7.' }),
+        E('suitcase-carry', 4, '40m', { section: J, note: '40 m/lado, carga máxima técnica.', rest: 120 }),
+        E('hip-thrust', 4, '6-8', { section: H('glúteo'), note: 'Subida explosiva.', rest: 120 }),
+        E('circuito-antebraco', 3, '1', { section: J, note: 'Dead hang + rosca de punho + inversa.', rest: 60 }),
+      ] },
+    },
+  },
 ];
 
-const TRONCO_DAYS = {
-  A: {
-    name: 'Puxada pesada + Trapézio', time: 75,
-    short: '60 min: mantenha os básicos, tire 1 série dos acessórios e o superset de braço pela metade.',
-    warmup: ['5 min bike ou remo leve', 'Ponte de glúteo 2×10, gato-camelo, rotação torácica no chão 8/lado', 'Dead hang 2×20 s e rotação externa de ombro com banda 2×15', 'Rampa do terra: barra vazia, 40%, 60%, 80%, depois o peso de trabalho'],
-    sections: [
-      ['Força principal', [
-        ['levantamento-terra', 'Do chão, reiniciando a cada rep (sem quicar). Coluna neutra.', ['4×6–8', '4×4–6', '5×3–5'], '3–4 min'],
-        ['supino-reto', 'Escápulas travadas, pausa curta no peito.', ['3×8–10', '4×5–7', '4×4–6'], '3 min'],
-      ]],
-      ['Hipertrofia · costas, trapézio, ombros', [
-        ['remada-curvada', 'Pronada, tronco a ~45°, puxa até o umbigo. Sem ioiô de quadril.', ['3×8–10', '3×6–8', '4×5–7'], '2–3 min'],
-        ['encolhimento', 'Com barra. Pausa de 2 s no topo; sobe os ombros reto, sem rodar.', ['4×10–12', '4×8–10', '4×6–8 + hold 20 s'], '2 min'],
-        ['elevacao-lateral', 'Cotovelo levemente flexionado, descida de 2–3 s.', ['3×12–15', '3×12–15', '3×10–12'], '90 s'],
-      ]],
-      ['Funcional · jiu', [
-        ['farmer-walk', 'Halteres pesados. Postura alta, passos curtos. Trapézio, antebraço e core.', ['3×30 m', '4×30 m (mais pesado)', '4×40 m (máx. técnico)'], '2 min'],
-      ]],
-      ['Tronco de árvore', [
-        ['rosca-direta', 'Superset com tríceps testa. Sem balanço; pare 1–2 reps antes da falha técnica.', ['3×8–12', '3×8–10', '3×6–10'], '90 s', { opt: true, ss: 'S1' }],
-        ['triceps-testa', 'Superset com rosca direta.', ['3×8–12', '3×8–10', '3×6–10'], '90 s', { opt: true, ss: 'S1' }],
-        ['panturrilha-pe', 'Alonga 2 s embaixo, pausa 1 s em cima.', ['4×12–15', '4×10–12', '4×8–10 pausa 2 s'], '90 s'],
-        ['pescoco', 'Anilha, banda ou manual. Flexão, extensão e laterais. Movimento lento, nunca falha.', ['2×15–20 /direção', '2×15–20 /direção', '2×12–15 + isometria 20 s'], '60 s'],
-      ]],
-    ],
-  },
-  B: {
-    name: 'Pernas + Ombros + Puxada vertical', time: 80,
-    short: '65 min: tire o encolhimento com halteres e o superset de braço, mantenha os 3 básicos.',
-    warmup: ['5 min bike leve', 'Ponte de glúteo 2×10, agachamento no peso corporal com pausa 2×8, mobilidade de tornozelo', 'Rotação externa de ombro com banda 2×15, dead hang 2×20 s', 'Rampa do agachamento: barra vazia, 40%, 60%, 80%, depois o peso de trabalho'],
-    sections: [
-      ['Força principal', [
-        ['agachamento', 'Profundidade onde o joelho está 100% confortável. Excêntrico de 3 s no Bloco 1. Joelhos na linha dos pés, sem torção.', ['4×6–8', '4×5–6', '5×3–5'], '3–4 min'],
-        ['desenvolvimento', 'Militar em pé. Glúteo e abdômen travados; cabeça passa à frente da barra no topo.', ['4×6–8', '4×4–6', '5×3–5'], '3 min'],
-        ['barra-fixa', 'Com carga, pronada. Peito à barra, descida controlada, sem kipping. Use cinto.', ['4×5–8', '4×4–6', '5×3–5'], '3 min'],
-      ]],
-      ['Hipertrofia · posterior, ombro, trapézio', [
-        ['rdl', 'Stiff/RDL: quadril para trás, barra rente à perna.', ['3×8–10', '3×6–8', '3×6–8'], '2–3 min'],
-        ['face-pull', 'Corda; rotação externa no fim. Ombro saudável para o jiu.', ['3×15–20', '3×15–20', '3×12–15'], '60 s'],
-        ['encolhimento', 'Com halteres, pegada neutra. Pausa 1 s no topo.', ['3×12–15', '3×10–12', '3×8–10'], '90 s', { opt: true }],
-      ]],
-      ['Funcional · jiu', [
-        ['pallof', 'Pallof press + prancha lateral (s). Anti-rotação: aguenta o torque do adversário.', ['3×10/lado + 30 s', '3×12/lado + 40 s', '3×12/lado + 45 s'], '60 s'],
-      ]],
-      ['Tronco de árvore', [
-        ['rosca-martelo', 'Superset com tríceps corda. Martelo pega braquial e antebraço.', ['3×10–12', '3×8–12', '3×8–10'], '90 s', { opt: true, ss: 'S1' }],
-        ['triceps-corda', 'Superset com rosca martelo.', ['3×10–12', '3×8–12', '3×8–10'], '90 s', { opt: true, ss: 'S1' }],
-        ['panturrilha-sentado', 'Sóleo: volume na parte de baixo da panturrilha.', ['4×12–20', '4×10–15', '4×8–12'], '90 s'],
-        ['pescoco-iso', 'Isometria de 10 s por direção + extensão, sem dor cervical.', ['4×10 s /direção', '4×10 s /direção', '5×10 s /direção'], '45 s'],
-      ]],
-    ],
-  },
-  C: {
-    name: 'Strongman funcional + Hipertrofia', time: 85,
-    short: '65 min: tire a remada unilateral, o leg curl e o superset de braço.',
-    warmup: ['5 min remo ou bike', 'Ponte de glúteo 2×12, rotação torácica, mobilidade de quadril sem torcer o joelho', 'Rampa do push press: barra vazia, 40%, 60%, 80%', 'Dead hang 2×20 s'],
-    sections: [
-      ['Força principal', [
-        ['push-press', 'Dip curto de joelho, explosão de pernas, trava em cima. Estilo strongman.', ['4×6–8', '4×4–6', '5×3–4'], '3 min'],
-        ['rack-pull', 'Pesado, tensão nas dorsais. Se o jiu de sexta foi pesado, deixe 3 reps na reserva.', ['3×6–8', '4×4–6', '4×3–5'], '3 min'],
-      ]],
-      ['Hipertrofia · peito, pernas, glúteo', [
-        ['paralelas', 'Com carga. Tronco levemente inclinado para o peito; desce até 90°.', ['3×8–10', '4×6–8', '4×5–7'], '2–3 min'],
-        ['leg-press', 'ROM controlado, sem travar o joelho no topo, sem torção.', ['3×12–15', '3×10–12', '3×8–10'], '2 min'],
-        ['hip-thrust', 'Pausa 1 s no topo. Glúteo grande e ponte do jiu.', ['3×8–12', '3×8–10', '4×6–8'], '2 min'],
-        ['remada-unilateral', 'Apoio no banco, puxa até a cintura.', ['3×10–12', '3×8–10', '3×8–10'], '90 s', { opt: true }],
-        ['mesa-flexora', 'Leg curl deitado: posterior protege o joelho. Excêntrico de 3 s.', ['3×10–15', '3×8–12', '3×8–10'], '90 s', { opt: true }],
-      ]],
-      ['Funcional · jiu', [
-        ['suitcase-carry', 'Haltere unilateral; não deixa o tronco inclinar. Oblíquo e pegada.', ['3×30 m /lado', '4×30 m /lado', '4×40 m /lado'], '90 s'],
-        ['circuito-antebraco', 'Dead hang 30–60 s, rosca de punho 15–20, rosca inversa 12–15.', ['3 rounds', '3 rounds', '4 rounds'], '60 s'],
-      ]],
-      ['Tronco de árvore', [
-        ['rosca-inclinada', 'Superset com extensão de tríceps acima da cabeça. Posições de alongamento crescem mais.', ['3×10–15', '3×10–12', '3×8–12'], '90 s', { opt: true, ss: 'S1' }],
-        ['triceps-frances', 'Extensão acima da cabeça no cabo, em superset com a rosca inclinada.', ['3×10–15', '3×10–12', '3×8–12'], '90 s', { opt: true, ss: 'S1' }],
-        ['panturrilha-leg', 'Pausa de 1 s em cima, alongar embaixo.', ['4×15–20', '4×12–15', '4×10–12 pausa 2 s'], '75 s'],
-        ['pescoco', 'Mesma técnica: lento, sem falha.', ['2×20 /direção', '2×15–20 /direção', '2×15 + isometria'], '60 s'],
-      ]],
-    ],
-  },
+PROGRAM_TEMPLATES['tronco-arvore'] = {
+  version: TEMPLATE_VERSION,
+  name: 'Tronco de Árvore — Strongman × Jiu-Jítsu',
+  author: 'Protocolo · Nov 2026', tagline: 'Shape strongman estilo Pudzianowski, adaptado ao joelho e à rotina de jiu-jítsu.', cover: '#e0551f',
+  level: 'Intermediário', days: 3, sessionMin: 70, goals: ['strongman', 'forca', 'hipertrofia', 'jiu-jitsu'], equipment: 'Academia + halteres pesados',
+  schedule: ['Jiu', 'A', 'Jiu', 'B', 'Jiu?', 'C', 'Off'],
+  desc: '3 full body por semana (ter · qui · sáb), 12 semanas em 3 blocos de 4 bem diferentes: Base (%RM baixo, poucos acessórios), Hipertrofia (mais exercícios, RPE alto, Juggernaut 8s) e Força Strongman (poucos exercícios, top sets autorregulados, teste na semana 12). Pescoço, trapézio, antebraço e panturrilha 3× por semana.',
+  rules: [
+    'Cada bloco tem um papel: Base (técnica e capacidade), Hipertrofia (volume e massa), Força (carga máxima e específica).',
+    'As cargas dos básicos saem do seu 1RM (Progresso → Meus 1RM ou estimado pelo histórico). Bloco 1: %RM +2,5%/semana. Bloco 2: Juggernaut. Bloco 3: top set em RPE + back-offs.',
+    'Pescoço, trapézio, antebraço e panturrilha 3× por semana: músculos pequenos respondem à frequência.',
+    'Falha total só nos isoladores do bloco de hipertrofia. Nos básicos, nunca.',
+    'Joelho manda — teste das 24 h: inchaço ou dor acima de 3/10 no dia seguinte → reduza 10% o agachamento ou troque por leg press. Nada de pivô ou torção sob carga.',
+    'Anote o RPE do top set: é ele que recalcula o seu 1RM estimado.',
+  ],
+  sections: [
+    { title: 'Mapa do shape', items: ['Trapézio (3×): encolhimento com pausa, terra, rack pull, farmer walk', 'Pescoço (3×): 4 direções + isometria, progressão lenta', 'Peitoral (2×): supino reto + paralelas', 'Ombros (3×): militar, push press, elevação lateral, face pull', 'Braço e antebraço: supersets bi/tri no bloco 2 + carregadas + rosca de punho', 'Pernas e glúteo: agachamento, leg press, stiff, hip thrust, leg curl', 'Panturrilha (3×): em pé, sentada e no leg press'] },
+    { title: 'Ponte com o jiu-jítsu', items: ['Terra / rack pull → levantar o oponente, defesa de queda, base na passagem', 'Hip thrust → ponte e fuga de montada', 'Remada / barra fixa → puxada de guarda, controle de gola e manga', 'Farmer / suitcase → pegada que não abre no fim do round', 'Pallof → resistir à rotação, base lateral', 'Militar / push press → frames, empurrar, explosão', 'Pescoço → proteção em quedas, defesa de guilhotina', 'Sexta com sparring pesado: no sábado, rack pull 1 RPE abaixo e −1 série de leg press.', 'Joelho no tatame: até a liberação, evite leg locks, heel hooks e joelho preso com corpo girando.', 'Pescoço: no máximo +10% de carga por semana. Pare com formigamento ou dor cervical.'] },
+    { title: 'Comida e recuperação', items: ['Manutenção ou superávit leve (+200 a 300 kcal) nos dias de treino; proteína ~190 g/dia.', 'Duas semanas sem progredir: coma e durma mais antes de mexer no treino.', 'Dor articular: reduza carga e volume do exercício culpado, não pare tudo. Cansaço acumulado: antecipe o deload.', 'Registrar: cargas, reps e RPE dos básicos, peso médio semanal, medidas a cada 4 semanas, joelho 0–10.'] },
+  ],
+  blocks: TRONCO_BLOCKS.map((b, i) => ({
+    name: b.name, goal: b.goal, weeks: b.weeks, progression: b.progression, weekPlan: b.weekPlan, objective: b.objective, criteria: b.criteria,
+    ...(b.wave ? { wave: b.wave } : {}),
+    workouts: Object.entries(b.days).map(([k, d]) => ({
+      name: `B${i + 1} · ${k} — ${DAY[k]}`, warmup: TRONCO_WARM[k], short: d.short, sessionMin: d.time,
+      ...(d.finisher ? { finisher: d.finisher } : {}), exercises: d.exercises,
+    })),
+  })),
 };
 
 // "3–4 min" → 210 s; "90 s entre rounds" → 90
@@ -249,57 +358,28 @@ export function parseRx(txt) {
   return { sets: Number(m[1]), reps: m[4] ? `${reps}${m[4]}` : reps, extra: m[5].trim() };
 }
 
-function troncoBlock(i) {
-  const names = ['Bloco 1 — Construção', 'Bloco 2 — Força e massa', 'Bloco 3 — Strongman'];
-  const goals = ['hipertrofia', 'forca', 'forca'];
-  const objectives = [
-    'Reps 8–12 nos grandes, 12–20 nos acessórios. Excêntrico controlado no agachamento (3 s). Joelho recuperando carga, mantendo ROM. Pescoço e pegada: aprender a técnica com carga leve.',
-    'Reps 4–7 nos básicos, 8–12 nos acessórios. Carregadas mais pesadas (4 séries). Reavaliação do joelho: se liberado, entra búlgaro/frontal no lugar do leg press. Pausas de 2 s no encolhimento e na panturrilha.',
-    'Reps 3–5 nos básicos, 6–10 nos acessórios. Carregadas até 40 m com carga máxima técnica. Semana 12: teste de 3–5RM (sem falha absoluta). Depois: deload e novo ciclo com cargas maiores.',
-  ];
-  return {
-    name: names[i], goal: goals[i], weeks: 4, progression: 'double', weekPlan: RIR_WEEKS(i === 2 ? 'test' : 'deload'), objective: objectives[i],
-    criteria: i < 2 ? 'Avance após o deload se as cargas subiram ou ficaram estáveis, o joelho passa no teste das 24 h e o jiu está rendendo.' : 'Fim do ciclo: compare os testes e as medidas da semana 12 e comece um novo ciclo com cargas maiores.',
-    workouts: Object.entries(TRONCO_DAYS).map(([k, d]) => ({
-      name: `B${i + 1} · ${k} — ${d.name}`,
-      warmup: d.warmup,
-      short: d.short,
-      sessionMin: d.time,
-      exercises: d.sections.flatMap(([section, items]) => items.map(([exId, note, rx, rest, o = {}]) => {
-        const p = parseRx(rx[i]);
-        const strength = section === 'Força principal';
-        return {
-          exId, sets: p.sets, reps: p.reps, rest: parseRest(rest), section,
-          note: [note, p.extra && `(${p.extra})`].filter(Boolean).join(' '),
-          prog: strength && i === 2 ? 'rpe' : 'double',
-          ...(o.opt ? { optional: true } : {}), ...(o.ss ? { superset: o.ss } : {}),
-        };
-      })),
-    })),
-  };
-}
+// Exercício do modelo → exercício do treino.
+const toExercise = (e, b) => (Array.isArray(e)
+  ? { exId: e[0], sets: e[1], reps: e[2], rest: e[5] ?? 90, note: e[3], prog: e[4] ?? b.progression }
+  : { ...e, prog: e.prog ?? b.progression, rest: e.rest ?? 90 });
 
-PROGRAM_TEMPLATES['tronco-arvore'] = {
-  name: 'Tronco de Árvore — Strongman × Jiu-Jítsu',
-  author: 'Protocolo · Nov 2026', tagline: 'Shape strongman estilo Pudzianowski, adaptado ao joelho e à rotina de jiu-jítsu.', cover: '#e0551f',
-  level: 'Intermediário', days: 3, sessionMin: 80, goals: ['strongman', 'forca', 'hipertrofia', 'jiu-jitsu'], equipment: 'Academia + halteres pesados',
-  schedule: ['Jiu', 'A', 'Jiu', 'B', 'Jiu?', 'C', 'Off'],
-  desc: '3 full body por semana (ter · qui · sáb), 12 semanas em 3 blocos de 4: três semanas subindo (RIR 3 → 2 → 1) e uma de deload; a semana 12 é de teste. Pescoço, trapézio, antebraço e panturrilha 3× por semana.',
-  rules: [
-    'Básicos pesados primeiro, volume depois: cada dia abre com 2–3 levantamentos de força (3–8 reps) e termina com hipertrofia e funcional.',
-    'Pescoço, trapézio, antebraço e panturrilha 3× por semana: músculos pequenos toleram e respondem à frequência.',
-    'Progressão dupla: topo da faixa em todas as séries com o RIR previsto → +2,5 kg em cima, +5 kg em perna e terra na próxima sessão.',
-    'Falha total só nos isoladores. Nos básicos, pare com 1–3 reps na reserva conforme a semana.',
-    'Joelho manda — teste das 24 h: inchaço ou dor acima de 3/10 no dia seguinte → reduza 10% o agachamento ou troque por leg press. Nada de pivô ou torção sob carga.',
-    'Cargas de partida: semana 1 com 3 reps na reserva; agachamento e leg press com 4, subindo só se o joelho passar no teste das 24 h. Anote tudo.',
-  ],
-  sections: [
-    { title: 'Mapa do shape', items: ['Trapézio (3×): encolhimento com pausa, terra, rack pull, farmer walk', 'Pescoço (3×): 4 direções + isometria, progressão lenta', 'Peitoral (2×): supino reto + paralelas com carga', 'Ombros (3×): militar, push press, elevação lateral, face pull', 'Braço e antebraço (3×): supersets bi/tri + carregadas + rosca de punho', 'Pernas e glúteo (2–3×): agachamento, leg press, stiff, hip thrust, leg curl', 'Panturrilha (3×): em pé, sentada e no leg press, com pausa', 'Quer mais peito? Troque a remada unilateral do sábado por 3 séries de supino inclinado com halteres.'] },
-    { title: 'Ponte com o jiu-jítsu', items: ['Terra / rack pull → levantar o oponente, defesa de queda, base na passagem', 'Hip thrust → ponte e fuga de montada, explosão de quadril', 'Remada / barra fixa → puxada de guarda, controle de gola e manga', 'Farmer / suitcase → pegada que não abre no fim do round', 'Pallof / prancha lateral → resistir à rotação, base lateral', 'Militar / push press → frames, empurrar, explosão', 'Pescoço → proteção em quedas, defesa de guilhotina', 'Sexta com sparring pesado: no sábado, rack pull com 3 reps na reserva e −1 série de leg press. Jiu pesado antes de perna: −1 série de agachamento.', 'Joelho no tatame: até a liberação, evite leg locks, heel hooks e joelho preso com corpo girando. Bata cedo.', 'Cotovelo doendo em extensões/roscas: −1 série. Face pull e rotação externa nunca saem.', 'Pescoço: no máximo +10% de carga por semana, lento, sem falha. Pare com formigamento ou dor cervical.'] },
-    { title: 'Comida e recuperação', items: ['Manutenção ou superávit leve (+200 a 300 kcal) nos dias de treino; proteína ~190 g/dia; carboidrato ao redor da musculação; ganho máximo de 0,2–0,4 kg/semana.', 'Tudo certo: cargas subindo ou estáveis, sono bom, joelho sem inchaço, jiu rendendo.', 'Duas semanas sem progredir: coma e durma mais antes de mexer no treino.', 'Dor articular: reduza carga e volume do exercício culpado, não pare tudo. Cansaço acumulado: antecipe o deload.', 'Registrar: cargas e reps dos básicos, peso médio semanal em jejum, medidas e foto a cada 4 semanas, joelho 0–10 pós-treino.'] },
-  ],
-  blocks: [0, 1, 2].map(troncoBlock),
-};
+const workoutFields = (w, b) => ({
+  type: 'strength', name: w.name,
+  ...(w.warmup ? { warmup: w.warmup } : {}), ...(w.short ? { short: w.short } : {}), ...(w.sessionMin ? { sessionMin: w.sessionMin } : {}),
+  ...(w.finisher ? { finisher: w.finisher } : {}),
+  exercises: w.exercises.map((e) => toExercise(e, b)),
+});
+
+const blockFields = (b) => ({
+  name: b.name, goal: b.goal, weeks: b.weeks, progression: b.progression, weekPlan: b.weekPlan ?? null,
+  objective: b.objective ?? '', criteria: b.criteria ?? '', volumeTargets: b.volumeTargets ?? null, ...(b.wave ? { wave: b.wave } : {}),
+});
+
+const programFields = (key, t) => ({
+  template: key, name: t.name, desc: t.desc, rules: t.rules, sections: t.sections ?? [], schedule: t.schedule ?? null,
+  meta: { author: t.author, cover: t.cover, level: t.level, days: t.days, sessionMin: t.sessionMin, goals: t.goals, equipment: t.equipment, tagline: t.tagline },
+  templateVersion: t.version ?? 1,
+});
 
 // Instancia um modelo: pasta + treinos + programa (ids novos). Não toca no estado.
 export function instantiateProgram(key, uid, template = PROGRAM_TEMPLATES[key]) {
@@ -309,25 +389,94 @@ export function instantiateProgram(key, uid, template = PROGRAM_TEMPLATES[key]) 
   const blocks = t.blocks.map((b) => {
     const ids = b.workouts.map((w) => {
       const id = uid();
-      workouts.push({
-        id, type: 'strength', name: w.name, folderId: folder.id,
-        ...(w.warmup ? { warmup: w.warmup } : {}), ...(w.short ? { short: w.short } : {}), ...(w.sessionMin ? { sessionMin: w.sessionMin } : {}),
-        // exercício em lista ([exId, séries, reps, nota, prog, descanso]) ou objeto completo
-        exercises: w.exercises.map((e) => (Array.isArray(e)
-          ? { exId: e[0], sets: e[1], reps: e[2], rest: e[5] ?? 90, note: e[3], prog: e[4] ?? b.progression }
-          : { ...e, prog: e.prog ?? b.progression, rest: e.rest ?? 90 })),
-      });
+      workouts.push({ id, folderId: folder.id, ...workoutFields(w, b) });
       return id;
     });
-    return {
-      id: uid(), name: b.name, goal: b.goal, weeks: b.weeks, progression: b.progression, weekPlan: b.weekPlan,
-      objective: b.objective, criteria: b.criteria, volumeTargets: b.volumeTargets ?? null, workoutIds: ids, perWeek: ids.length,
-    };
+    return { id: uid(), ...blockFields(b), workoutIds: ids, perWeek: ids.length };
   });
   const program = {
-    id: uid(), template: key, name: t.name, desc: t.desc, rules: t.rules, sections: t.sections ?? [], schedule: t.schedule ?? null,
-    meta: { author: t.author, cover: t.cover, level: t.level, days: t.days, sessionMin: t.sessionMin, goals: t.goals, equipment: t.equipment, tagline: t.tagline },
+    id: uid(), ...programFields(key, t),
     blocks, blockIndex: 0, blockStartedAt: null, status: 'ready', createdAt: Date.now(), history: [],
   };
   return { folder, workouts, program };
+}
+
+// "B2 · A — ..." → "B2·A" (código do treino dentro do programa)
+const wCode = (name) => { const m = String(name ?? '').match(/^B(\d+)\s*·\s*([A-Z])\b/); return m ? `B${m[1]}·${m[2]}` : null; };
+
+/**
+ * Atualiza (no lugar) um programa instalado para a versão nova do modelo, sem perder o progresso:
+ * mantém ids do programa, dos blocos e dos treinos (o histórico e a semana atual continuam valendo),
+ * blockIndex, blockStartedAt, status e history. Treinos que sumiram são readotados pela pasta do
+ * programa (mesmo código "B1 · A") ou recriados com id determinístico. Retorna true se mudou algo.
+ */
+export function upgradeProgram(s, p, template = PROGRAM_TEMPLATES[p.template]) {
+  const t = template;
+  if (!t || (p.templateVersion ?? 1) >= (t.version ?? 1)) return false;
+  const byId = new Map(s.workouts.map((w) => [w.id, w]));
+  const usedElsewhere = new Set((s.programs ?? []).filter((x) => x.id !== p.id).flatMap((x) => x.blocks.flatMap((b) => b.workoutIds)));
+  // pasta do programa: a dos treinos existentes, ou a pasta com o mesmo nome
+  const own = p.blocks.flatMap((b) => b.workoutIds).map((id) => byId.get(id)).filter(Boolean);
+  let folderId = own.find((w) => w.folderId && w.folderId !== 'archive')?.folderId
+    ?? (s.workoutFolders ?? []).find((f) => f.name === p.name || f.name === t.name)?.id;
+  if (!folderId) {
+    folderId = `${p.id}-f`;
+    (s.workoutFolders ??= []).push({ id: folderId, name: t.name });
+  }
+  const pool = s.workouts.filter((w) => w.folderId === folderId && !usedElsewhere.has(w.id));
+  const taken = new Set();
+  const blocks = t.blocks.map((b, i) => {
+    const old = p.blocks[i];
+    const ids = b.workouts.map((w, j) => {
+      let cur = old?.workoutIds?.[j] && byId.get(old.workoutIds[j]);
+      if (!cur) cur = pool.find((x) => !taken.has(x.id) && wCode(x.name) && wCode(x.name) === wCode(w.name));
+      const data = workoutFields(w, b);
+      if (cur) {
+        taken.add(cur.id);
+        const keep = { id: cur.id, folderId: cur.folderId && cur.folderId !== 'archive' ? cur.folderId : folderId };
+        for (const k of Object.keys(cur)) delete cur[k];
+        Object.assign(cur, keep, data);
+        return cur.id;
+      }
+      const id = `${p.id}-b${i}w${j}`;
+      const exist = byId.get(id);
+      if (exist) Object.assign(exist, data, { folderId });
+      else s.workouts.push({ id, folderId, ...data });
+      taken.add(id);
+      return id;
+    });
+    // treinos do bloco antigo que não existem mais no modelo vão para o arquivo (sem apagar)
+    for (const id of old?.workoutIds ?? []) if (!ids.includes(id) && byId.get(id)) byId.get(id).folderId = 'archive';
+    return { id: old?.id ?? `${p.id}-b${i}`, ...blockFields(b), workoutIds: ids, perWeek: ids.length };
+  });
+  Object.assign(p, programFields(p.template, t), { blocks, blockIndex: Math.min(p.blockIndex ?? 0, blocks.length - 1) });
+  return true;
+}
+
+// Atualiza todos os programas instalados de modelos embutidos.
+export function upgradePrograms(s) {
+  let changed = false;
+  for (const p of s.programs ?? []) if (p.template && PROGRAM_TEMPLATES[p.template]) changed = upgradeProgram(s, p) || changed;
+  return changed;
+}
+
+/**
+ * Instala um modelo no estado sem duplicar: se já existe uma pasta com o nome do programa
+ * (ex.: o programa foi excluído e os treinos ficaram na pasta), os treinos dela são
+ * reaproveitados pelo código "B1 · A"; só o que faltar é criado. Retorna o id do programa.
+ */
+export function installInto(st, key, uid, template = PROGRAM_TEMPLATES[key]) {
+  const t = template;
+  const folder = (st.workoutFolders ?? []).find((f) => f.name === t.name);
+  const made = instantiateProgram(key, uid, t);
+  if (folder && st.workouts.some((w) => w.folderId === folder.id)) {
+    const p = { ...made.program, templateVersion: 0, blocks: made.program.blocks.map((b) => ({ ...b, workoutIds: [] })) };
+    (st.programs ??= []).push(p);
+    upgradeProgram(st, p, { ...t, version: Math.max(1, t.version ?? 1) });
+    return p.id;
+  }
+  (st.workoutFolders ??= []).push(made.folder);
+  st.workouts.push(...made.workouts);
+  (st.programs ??= []).push(made.program);
+  return made.program.id;
 }

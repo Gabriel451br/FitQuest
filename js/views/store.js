@@ -3,7 +3,7 @@
 import { html, useState } from '../lib.js';
 import { update, getState, exerciseById } from '../store.js';
 import { Icon, openModal, Sheet, toast, confirmDialog, Empty } from '../ui.js';
-import { PROGRAM_TEMPLATES, instantiateProgram } from '../data/programs.js';
+import { PROGRAM_TEMPLATES, installInto } from '../data/programs.js';
 import { SPLIT_TEMPLATES } from '../data/exercises.js';
 import { BLOCK_GOALS, PROGRESSIONS, weekGuide, DEFAULT_WEEK_PLAN } from '../programs.js';
 import { followProgram } from '../actions.js';
@@ -36,13 +36,9 @@ const totalWeeks = (t) => t.blocks.reduce((a, b) => a + (b.weeks || 0), 0);
 const installedOf = (s, key) => (s.programs ?? []).find((p) => p.template === key);
 
 export function installTemplate(key, t) {
-  const { folder, workouts, program } = instantiateProgram(key, uid, t);
-  update((st) => {
-    (st.workoutFolders ??= []).push(folder);
-    st.workouts.push(...workouts);
-    (st.programs ??= []).push(program);
-  });
-  return program.id;
+  let id = null;
+  update((st) => { id = installInto(st, key, uid, t); });
+  return id;
 }
 
 // Programa meu → modelo da loja (com os treinos atuais de cada bloco).
@@ -239,6 +235,15 @@ function StoreProgram({ k, close }) {
   `;
 }
 
+// Prescrição curta para listas: "4×8 @62,5%", "5/3/1 + BBB", "Jugg 8s", "Top 1×3 @RPE + 3 BO".
+export function rxShort(e) {
+  if (e.prog === 'pct' && e.groups?.length) return e.groups.map((g) => `${g.sets}×${g.reps}${g.pct ? ` @${String(g.pct).replace('.', ',')}%` : ''}${g.kind === 'cluster' ? ' cl' : g.kind === 'speed' ? ' sp' : g.kind === 'amrap' ? '+' : ''}`).join(' + ');
+  if (e.prog === 'w531') return `5/3/1${e.supp ? ` + ${e.supp.toUpperCase()}` : ''}`;
+  if (e.prog === 'jugg') return 'Juggernaut';
+  if (e.prog === 'haack') return `Top 1×${String(e.reps).split('-').pop()} @RPE + ${Math.max(0, (e.sets || 1) - 1)} BO`;
+  return `${e.sets}×${e.reps}`;
+}
+
 function WorkoutPreview({ s, w }) {
   let lastSec = null;
   return html`
@@ -251,9 +256,10 @@ function WorkoutPreview({ s, w }) {
           ${head && html`<div class="eyebrow" style="margin-top:8px">${head}</div>`}
           <div class="wprev-row">
             <span class="grow">${exerciseById(s, e.exId).name}${e.superset ? html` <span class="tag">SS</span>` : ''}${e.optional ? html` <span class="tag">cortável</span>` : ''}</span>
-            <b class="mono small">${e.sets}×${e.reps}</b>
+            <b class="mono small">${rxShort(e)}</b>
           </div>`;
       })}
+      ${w.finisher?.length > 0 && html`<p class="tiny muted"><b>Cardio/final:</b> ${w.finisher.join(' · ')}</p>`}
       ${w.short && html`<p class="tiny muted"><b>Versão curta:</b> ${w.short}</p>`}
     </div>
   `;

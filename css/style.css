@@ -869,3 +869,9 @@ details.fold[open] > .list { border-top: 0; border-top-left-radius: 0; border-to
 .ex-card.ss { border-left: 4px solid var(--c); }
 .wp.test { background: color-mix(in srgb, #d2a62b 30%, var(--surface)); }
 .title-input { font-size: 19px !important; }
+
+/* prescrição por %RM / RPE (5/3/1, Juggernaut, autorregulada) */
+.ex-rx { padding: 8px 12px; font-size: 13px; line-height: 1.4; border-bottom: 1px solid var(--hair); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.ex-rx b { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; margin-right: 6px; color: var(--accent); }
+tr.kind-amrap .set-num, tr.kind-top .set-num { font-weight: 800; }
+.wk-scheme { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; }

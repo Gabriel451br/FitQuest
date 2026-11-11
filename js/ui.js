@@ -119,6 +119,22 @@ export function confirmDialog(message, { ok = 'Confirmar', danger = true } = {})
   });
 }
 
+// Escolha entre várias ações: resolve com o valor da opção (ou null ao cancelar).
+// options: [{ value, label, danger?, primary? }]
+export function choiceDialog(title, message, options) {
+  return new Promise((resolve) => {
+    openModal((c) => html`
+      <${Sheet} title=${title} onClose=${() => { c(); resolve(null); }}>
+        ${message && html`<p class="small">${message}</p>`}
+        <div class="stack-sm">
+          ${options.map((o) => html`<button class=${`btn block ${o.danger ? 'danger' : o.primary ? 'primary' : ''}`} onClick=${() => { c(); resolve(o.value); }}>${o.label}</button>`)}
+          <button class="btn ghost block" onClick=${() => { c(); resolve(null); }}>Cancelar</button>
+        </div>
+      <//>
+    `);
+  });
+}
+
 // --- Toasts -------------------------------------------------------------------
 let toastHost = null;
 let toasts = [];

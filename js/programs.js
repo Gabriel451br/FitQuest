@@ -22,6 +22,7 @@ export const PROGRESSIONS = {
   linear: { label: 'Linear', short: 'Linear', desc: 'Completou todas as séries e reps → +carga na próxima sessão.' },
   rpe: { label: 'Autorregulada (RPE)', short: 'RPE', desc: 'Ajusta a carga pelo RPE da última vez: abaixo do alvo sobe, acima desce.' },
   explosive: { label: 'Explosivos', short: 'Explosivo', desc: 'Poucas reps rápidas, sem falha. Só sobe a carga quando a execução estiver consistente.' },
+  hd: { label: 'Heavy Duty (1 série até a falha)', short: 'HD', desc: 'Estilo Dorian Yates: 1–2 aquecimentos e uma única série até a falha. Bateu o topo da faixa de reps → sobe a carga na próxima.' },
   // por %RM / RPE (cargas calculadas pelo 1RM): %RM linear, 5/3/1, Juggernaut, autorregulada (Haack)
   ...SCHEMES,
 };
@@ -117,6 +118,24 @@ export function suggestProgression(prog, last, repRange, { step = 2.5, targetRpe
       const diff = rpeT - r;
       const kg = diff >= 1 ? round(topKg * 1.025 + 0.01, step >= 5 ? 2.5 : 1) : diff <= -1 ? round(topKg * 0.975, step >= 5 ? 2.5 : 1) : topKg;
       return { kg, reps: reps(top), text: diff >= 1 ? `RPE ${r} < alvo ${rpeT}: suba para ${kg} kg` : diff <= -1 ? `RPE ${r} > alvo ${rpeT}: reduza para ${kg} kg` : `No alvo: mantenha ${kg} kg` };
+    }
+    case 'hd': {
+      const main = sets.find((x) => ['failure', 'top'].includes(setKind(x))) ?? sets[kgs.indexOf(topKg)];
+      const kg0 = Number(main.kg) || 0;
+      const done = reps(main);
+      if (!range) return { kg: kg0, reps: done, text: `Série única até a falha: ${kg0} kg, busque ${done + 1}+ reps` };
+      if (done > range.max + 1 && kg0 > 0) {
+        // veio de uma faixa de reps mais alta: acha a carga para falhar dentro da faixa nova
+        const fine = step >= 5 ? 2.5 : 1;
+        const rm = kg0 * (1 + (done + Math.max(0, 10 - (Number(main.rpe) || 10))) / 30);
+        const kg = Math.max(kg0 + step, round(rm / (1 + range.max / 30), fine));
+        return { kg, reps: range.min, text: `Última vez ${kg0} kg × ${done}: para falhar em ${range.min}–${range.max} reps use ~${kg} kg` };
+      }
+      if (done >= range.max) {
+        const kg = kg0 + step;
+        return { kg, reps: range.min, text: `Fez ${done} reps (topo da faixa): suba para ${kg} kg e vá até a falha (${range.min}–${range.max})` };
+      }
+      return { kg: kg0, reps: Math.min(range.max, done + 1), text: `Mantenha ${kg0} kg: série única até a falha, buscando ${Math.min(range.max, done + 1)}+ reps` };
     }
     case 'explosive': {
       const consistent = sets.every((x) => reps(x) >= (range?.min ?? 1) && (x.rpe == null || Number(x.rpe) <= 7));

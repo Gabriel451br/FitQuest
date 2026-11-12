@@ -209,7 +209,7 @@ function StoreProgram({ k, close }) {
           <div class="week-plan">
             ${Array.from({ length: b.weeks }, (_, i) => {
               const g = weekGuide(b, i + 1);
-              return html`<div class=${`wp ${g.deload ? 'deload' : ''} ${g.test ? 'test' : ''}`}><i>S${i + 1}</i><b>${g.deload ? 'Deload' : g.test ? 'Teste' : g.rpe ? `RPE ${g.rpe}` : '—'}</b></div>`;
+              return html`<div class=${`wp ${g.deload ? 'deload' : ''} ${g.test ? 'test' : ''}`}><i>S${i + 1}</i><b>${g.deload ? 'Deload' : g.test ? 'Teste' : g.rp ? 'Falha + RP' : g.rpe ? `RPE ${g.rpe}` : '—'}</b></div>`;
             })}
           </div>
         </div>
@@ -240,6 +240,7 @@ export function rxShort(e) {
   if (e.prog === 'pct' && e.groups?.length) return e.groups.map((g) => `${g.sets}×${g.reps}${g.pct ? ` @${String(g.pct).replace('.', ',')}%` : ''}${g.kind === 'cluster' ? ' cl' : g.kind === 'speed' ? ' sp' : g.kind === 'amrap' ? '+' : ''}`).join(' + ');
   if (e.prog === 'w531') return `5/3/1${e.supp ? ` + ${e.supp.toUpperCase()}` : ''}`;
   if (e.prog === 'jugg') return 'Juggernaut';
+  if (e.prog === 'hd') return `${e.sets || 1}×${e.reps} até a falha${e.rp ? ' + RP' : ''}`;
   if (e.prog === 'haack') return `Top 1×${String(e.reps).split('-').pop()} @RPE + ${Math.max(0, (e.sets || 1) - 1)} BO`;
   return `${e.sets}×${e.reps}`;
 }

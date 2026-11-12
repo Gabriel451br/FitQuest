@@ -89,7 +89,7 @@ export function prescribe(item, ctx = {}) {
   } else if (prog === 'haack') {
     const range = parseRepRange(item.reps) ?? { min: 3, max: 3 };
     const reps = range.max;
-    const rpe = item.rpe ?? ctx.rpe ?? 8;
+    const rpe = item.rpe ?? Math.min(ctx.rpe ?? 8, item.rpeMax ?? 10);
     const top = ctx.deload ? Math.min(rpe, 6) : ctx.test ? Math.max(rpe, 9) : rpe;
     const pTop = rpePct(reps, top);
     const drop = item.drop ?? 10;
@@ -113,6 +113,24 @@ export function prescribedSets(rx, step = 2.5) {
       });
     }
   }
+  return out;
+}
+
+/**
+ * Heavy Duty (estilo Dorian Yates): aquecimentos progressivos + série(s) até a falha.
+ * item: { sets (séries válidas, padrão 1), warm (0–2 aquecimentos), rp (séries de rest-pause) }
+ * opts: kg = carga da série válida (sugestão pela última vez); toFailure=false → "top" (semana de
+ * calibração, para antes da falha); rp=true → semana de intensificação; deload → 1 série leve.
+ */
+export function heavyDutySets(item, { deload = false, rp = false, toFailure = true, kg = null, step = 1 } = {}) {
+  const r = (f) => (kg ? Math.max(step, Math.round((kg * f) / step) * step) : null);
+  const mk = (kind, k, tReps) => ({ kg: k, reps: null, rpe: null, pct: null, done: false, kind, ...(tReps ? { tReps } : {}), auto: { kg: true } });
+  const warm = item.warm ?? 1;
+  const ramp = warm >= 2 ? [[0.5, '8'], [0.75, '4']] : warm === 1 ? [[0.6, '6']] : [];
+  const out = ramp.map(([f, reps]) => mk('warmup', r(f), reps));
+  const n = Math.max(1, item.sets || 1);
+  for (let i = 0; i < n; i++) out.push(mk(deload ? 'work' : toFailure ? 'failure' : 'top', deload ? r(0.9) : kg, item.reps ? String(item.reps) : null));
+  if (rp && !deload) for (let i = 0; i < (item.rp || 0); i++) out.push(mk('restpause', kg, '2-4'));
   return out;
 }
 

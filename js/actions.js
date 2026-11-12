@@ -6,9 +6,9 @@ import { dateKey, uid } from './util.js';
 import { ACTIVITIES, sessionType } from './cardio.js';
 import { GPS_TYPES } from './gps.js';
 import { routineFromSession } from './training.js';
-import { activeProgram, blockProgress, deloadSets, loadStep } from './programs.js';
-import { isScheme, prescribe, prescribedSets } from './periodization.js';
-import { oneRmRef } from './training.js';
+import { activeProgram, blockProgress, deloadSets, loadStep, suggestProgression } from './programs.js';
+import { isScheme, prescribe, prescribedSets, heavyDutySets } from './periodization.js';
+import { oneRmRef, lastPerformance } from './training.js';
 import { installInto } from './data/programs.js';
 
 export function addWater(date, ml) {
@@ -173,6 +173,18 @@ export function startSession(workout, date = dateKey()) {
             ...(e.section ? { section: e.section } : {}), ...(e.optional ? { optional: true } : {}), ...(e.superset ? { superset: e.superset } : {}),
             note: lastExerciseNote(s, e.exId),
             sets: prescribedSets(rx, loadStep(s, e.exId) >= 5 ? 2.5 : 2),
+          };
+        }
+        if (prog === 'hd') {
+          // Heavy Duty: aquecimentos + 1 série até a falha, já com a carga sugerida pela última vez
+          const step = loadStep(s, e.exId);
+          const sug = suggestProgression('hd', lastPerformance(s, e.exId), e.reps, { step });
+          return {
+            exId: e.exId, target: e.reps, targetRpe: null, targetPct: null, targetKg: null,
+            rest: e.rest ?? 150, cue: e.note ?? '', prog,
+            ...(e.section ? { section: e.section } : {}), ...(e.optional ? { optional: true } : {}), ...(e.superset ? { superset: e.superset } : {}),
+            note: lastExerciseNote(s, e.exId),
+            sets: heavyDutySets(e, { deload, rp: inBlock && !!bp.guide.rp, toFailure: !rpeWeek || rpeWeek >= 10, kg: sug?.kg || null, step: step >= 5 ? 2.5 : 1 }),
           };
         }
         return {

@@ -107,18 +107,33 @@ test('todos os modelos: exercícios cadastrados, semanas e treinos coerentes', (
   }
   const t = instantiateProgram('tronco-arvore', uid);
   assert.equal(t.program.blocks.reduce((a, b) => a + b.weeks, 0), 12);
-  const a1 = t.workouts[0];
+  const day = (bi, di) => t.workouts[bi * 3 + di];
+  const sets = (w) => w.exercises.reduce((a, e) => a + e.sets, 0);
+  const a1 = day(0, 0);
   assert.equal(a1.warmup.length, 4);
+  // bloco 1: básicos em %RM
   const terra = a1.exercises[0];
-  assert.deepEqual([terra.exId, terra.prog, terra.groups[0].pct, terra.section], ['levantamento-terra', 'pct', 60, 'Força principal']);
-  // base: poucos exercícios; hipertrofia: mais e com supersets; força: poucos e autorregulados
-  const n = (bi) => t.workouts.slice(bi * 3, bi * 3 + 3).map((w) => w.exercises.length);
-  assert.ok(n(1).every((x, i) => x > n(0)[i] && x > n(2)[i]));
-  assert.equal(t.workouts[3].exercises.filter((e) => e.superset === 'S1').length, 2);
-  assert.equal(t.program.blocks[1].wave, 8);
-  assert.equal(t.workouts[3].exercises[0].prog, 'jugg');
-  assert.equal(t.workouts[6].exercises[0].prog, 'haack');
-  // bloco 3: semana 4 é teste, não deload
+  assert.deepEqual([terra.exId, terra.prog, terra.groups[0].pct, terra.section], ['levantamento-terra', 'pct', 65, 'Força principal']);
+  assert.equal(day(0, 2).exercises.find((e) => e.exId === 'rack-pull').pctOf, 'levantamento-terra');
+  // braços e panturrilha em todos os blocos (hipertrofia/manutenção)
+  const ARMS = ['rosca-direta', 'rosca-martelo', 'rosca-inversa', 'triceps-testa', 'triceps-corda', 'triceps-frances'];
+  for (let bi = 0; bi < 3; bi++) {
+    const ex = [0, 1, 2].flatMap((d) => day(bi, d).exercises.map((e) => e.exId));
+    assert.ok(ex.filter((id) => ARMS.includes(id)).length >= 4, `bloco ${bi + 1}: braços`);
+    assert.equal(ex.filter((id) => id.startsWith('panturrilha')).length, 3, `bloco ${bi + 1}: panturrilha 3×`);
+    assert.equal(ex.filter((id) => id.startsWith('pescoco')).length, 3, `bloco ${bi + 1}: pescoço 3×`);
+  }
+  // bloco 2: Heavy Duty — menos da metade das séries do bloco 1, 1 série até a falha
+  for (let d = 0; d < 3; d++) {
+    assert.ok(sets(day(1, d)) * 2 < sets(day(0, d)), 'heavy duty: poucas séries');
+    assert.ok(day(1, d).exercises.length <= 8);
+    assert.ok(day(1, d).exercises.filter((e) => e.prog === 'hd').every((e) => e.sets === 1));
+    assert.ok(day(1, d).exercises.filter((e) => e.prog === 'hd').length >= 4);
+  }
+  assert.equal(weekGuide(t.program.blocks[1], 3).rp, true);
+  // bloco 3: explosivo abre o treino, básicos autorregulados; semana 4 é teste, não deload
+  for (let d = 0; d < 3; d++) assert.equal(day(2, d).exercises[0].section, 'Explosão');
+  assert.equal(day(2, 0).exercises[1].prog, 'haack');
   assert.equal(weekGuide(t.program.blocks[2], 4).deload, false);
   assert.equal(weekGuide(t.program.blocks[2], 4).test, true);
   assert.equal(weekGuide(t.program.blocks[0], 4).deload, true);

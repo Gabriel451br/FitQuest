@@ -485,7 +485,7 @@ function ExerciseLog({ s, ses, ex, idx }) {
   const ref = oneRmRef(s, ex.exId);
   const guide = useMemo(() => sessionGuide(s, ses), [s.programs, ses.blockId, ses.week]);
   const rpeT = ex.targetRpe ?? (guide?.rpe ? Number(String(guide.rpe).split('-').pop()) : null);
-  const sug0 = ex.rx ? null : ex.prog ? suggestProgression(ex.prog, last, ex.target, { step: loadStep(s, ex.exId), targetRpe: rpeT }) : suggestNext(last, ex.target);
+  const sug0 = ex.rx && ref > 0 ? null : ex.prog ? suggestProgression(ex.prog, last, ex.target, { step: loadStep(s, ex.exId), targetRpe: rpeT }) : suggestNext(last, ex.target);
   // semana de deload: ~10% mais leve que a última carga de trabalho
   const dl = (kg) => Math.round((kg * 0.9) / (loadStep(s, ex.exId) >= 5 ? 2.5 : 1)) * (loadStep(s, ex.exId) >= 5 ? 2.5 : 1);
   const sug = ses.deload && sug0 && last ? { ...sug0, kg: dl(last.topKg), backoffKg: sug0.backoffKg ? dl(sug0.backoffKg) : null, text: `Deload: ~${dl(last.topKg)} kg (−10%), RPE 5–6, sem buscar recorde` } : sug0;
@@ -531,7 +531,8 @@ function ExerciseLog({ s, ses, ex, idx }) {
         // com sistema de progressão, a carga sugerida vale mais que a da última vez
         if (st.kg == null && sug && ex.prog && !isWarmup(st)) st.kg = setKind(st) === 'backoff' && sug.backoffKg ? sug.backoffKg : sug.kg;
         if (st.kg == null && prev) st.kg = Number(prev.kg);
-        if (st.reps == null && st.tReps && !String(st.tReps).includes('+')) st.reps = parseInt(st.tReps, 10) || null;
+        // reps prescritas fixas ("5") entram sozinhas; faixa ("6-8"), AMRAP ("8+") e série até a falha são digitadas
+        if (st.reps == null && /^\d+$/.test(String(st.tReps ?? ''))) st.reps = Number(st.tReps);
         if (st.reps == null && prev && !st.tReps) st.reps = Number(prev.reps);
         if (st.kg == null && sug && !isWarmup(st)) st.kg = sug.kg;
         st.auto = {};

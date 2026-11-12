@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyState, migrate } from '../js/selectors.js';
-import { prescribe, prescribedSets, rpePct, kgFor } from '../js/periodization.js';
+import { prescribe, prescribedSets, rpePct, kgFor, heavyDutySets } from '../js/periodization.js';
 import { instantiateProgram, upgradeProgram, PROGRAM_TEMPLATES } from '../js/data/programs.js';
-import { blockProgress } from '../js/programs.js';
+import { blockProgress, suggestProgression } from '../js/programs.js';
 
 test('RPE → %1RM (Epley com reps em reserva)', () => {
   assert.equal(rpePct(1, 10), 100);
@@ -110,7 +110,7 @@ test('upgrade mantém o progresso do programa atual (ids, semana, treino feito)'
   // conteúdo novo: base com %RM e poucos exercícios
   const a = s.workouts.find((w) => w.id === trProg.blocks[0].workoutIds[0]);
   assert.equal(a.exercises[0].prog, 'pct');
-  assert.equal(a.exercises.length, 6);
+  assert.equal(a.exercises.length, 9);
   assert.equal(s.workouts.length, nW, 'não duplica treinos');
   assert.equal(upgradeProgram(s, trProg), false, 'idempotente');
 });
@@ -147,4 +147,60 @@ test('instalar de novo um programa cuja pasta ficou não duplica os treinos', as
   assert.equal(s.workoutFolders.length, folders);
   const p = s.programs.find((x) => x.id === id);
   assert.ok(p.blocks.every((b) => b.workoutIds.length === 3 && b.workoutIds.every((w) => s.workouts.some((x) => x.id === w))));
+});
+
+test('Heavy Duty: aquecimentos + 1 série até a falha, rest-pause e deload', () => {
+  const item = { prog: 'hd', sets: 1, reps: '6-8', warm: 2, rp: 1 };
+  const wk2 = heavyDutySets(item, { kg: 40, step: 1 });
+  assert.deepEqual(wk2.map((x) => x.kind), ['warmup', 'warmup', 'failure']);
+  assert.deepEqual(wk2.map((x) => x.kg), [20, 30, 40]);
+  // calibração (semana 1): para antes da falha
+  assert.equal(heavyDutySets(item, { kg: 40, toFailure: false }).pop().kind, 'top');
+  // intensificação: + rest-pause com a mesma carga
+  const wk3 = heavyDutySets(item, { kg: 40, rp: true });
+  assert.deepEqual(wk3.map((x) => x.kind), ['warmup', 'warmup', 'failure', 'restpause']);
+  assert.equal(wk3[3].kg, 40);
+  // deload: 1 série leve, sem falha nem rest-pause
+  const dl = heavyDutySets(item, { kg: 40, rp: true, deload: true });
+  assert.deepEqual(dl.map((x) => x.kind), ['warmup', 'warmup', 'work']);
+  assert.equal(dl[2].kg, 36);
+  // sem histórico: estrutura sem cargas
+  assert.ok(heavyDutySets({ sets: 1, warm: 1 }, {}).every((x) => x.kg == null));
+  // progressão: topo da faixa na série até a falha → sobe; senão mantém e busca +1 rep
+  const up = suggestProgression('hd', { sets: [{ kg: 40, reps: 8, kind: 'failure' }, { kg: 40, reps: 3, kind: 'restpause' }] }, '6-8', { step: 2 });
+  assert.equal(up.kg, 42);
+  const keep = suggestProgression('hd', { sets: [{ kg: 40, reps: 6, kind: 'failure' }] }, '6-8', { step: 2 });
+  assert.deepEqual([keep.kg, keep.reps], [40, 7]);
+  // vindo do bloco anterior (3 séries normais): usa a mais pesada
+  assert.equal(suggestProgression('hd', { sets: [{ kg: 30, reps: 8 }, { kg: 30, reps: 8 }] }, '6-8', { step: 2 }).kg, 32);
+});
+
+test('top set autorregulado respeita o teto de RPE (básicos sem falha no Heavy Duty)', () => {
+  const rx = prescribe({ prog: 'haack', sets: 2, reps: '6', rpeMax: 9 }, { week: 2, rpe: 10, oneRm: 150 });
+  assert.equal(rx.groups[0].rpe, 9);
+  assert.equal(prescribedSets(rx).length, 2);
+  assert.equal(prescribe({ prog: 'haack', sets: 2, reps: '6', rpeMax: 8 }, { rpe: 8, oneRm: 150 }).groups[0].rpe, 8);
+});
+
+test('Tronco v2 → v3 mantém bloco, semana e treino feito', () => {
+  const { s, trProg } = legacyAccount();
+  upgradeProgram(s, trProg, { ...PROGRAM_TEMPLATES['tronco-arvore'], version: 2 });
+  trProg.templateVersion = 2;
+  const ids = trProg.blocks.map((b) => [b.id, ...b.workoutIds]);
+  const next = blockProgress(s, trProg).nextWorkoutId;
+  assert.ok(upgradeProgram(s, trProg));
+  assert.equal(trProg.templateVersion, 3);
+  assert.deepEqual(trProg.blocks.map((b) => [b.id, ...b.workoutIds]), ids);
+  const bp = blockProgress(s, trProg);
+  assert.deepEqual([bp.week, bp.sessions, bp.nextWorkoutId], [1, 1, next]);
+  assert.equal(s.workouts.find((w) => w.id === trProg.blocks[1].workoutIds[0]).exercises[1].prog, 'hd');
+});
+
+test('Heavy Duty: vindo de reps altas, calcula a carga para falhar na faixa nova', () => {
+  // tríceps testa 20 kg × 15 @9 → faixa 8–10
+  const s1 = suggestProgression('hd', { sets: [{ kg: 20, reps: 15, rpe: 9 }] }, '8-10', { step: 2 });
+  assert.equal(s1.kg, 23);
+  // panturrilha 90 kg × 20 → faixa 10–12 (passo de 5 kg, arredonda em 2,5)
+  const s2 = suggestProgression('hd', { sets: [{ kg: 90, reps: 20 }] }, '10-12', { step: 5 });
+  assert.ok(s2.kg >= 105 && s2.kg <= 110);
 });

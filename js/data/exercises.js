@@ -116,6 +116,9 @@ const RAW = [
 
   // strongman / pegada / pescoço
   ['farmer-walk', 'Farmer walk (m)', 'antebraco', ['trapezio', 'abdomen']],
+  ['kettlebell-swing', 'Kettlebell swing', 'gluteos', ['posterior', 'abdomen']],
+  ['barra-toalha', 'Barra fixa no kimono / toalha', 'costas', ['antebraco', 'biceps']],
+  ['zercher-carry', 'Carregada no abraço / Zercher carry (m)', 'abdomen', ['biceps', 'trapezio']],
   ['salto-carga', 'Salto com carga (loaded jump)', 'quadriceps', ['gluteos', 'panturrilha']],
   ['salto-vertical', 'Salto vertical / pliométrico', 'quadriceps', ['gluteos', 'panturrilha']],
   ['flexao-pliometrica', 'Flexão pliométrica (explosiva)', 'peito', ['triceps', 'ombros']],

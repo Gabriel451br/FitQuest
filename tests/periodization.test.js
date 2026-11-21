@@ -204,3 +204,14 @@ test('Heavy Duty: vindo de reps altas, calcula a carga para falhar na faixa nova
   const s2 = suggestProgression('hd', { sets: [{ kg: 90, reps: 20 }] }, '10-12', { step: 5 });
   assert.ok(s2.kg >= 105 && s2.kg <= 110);
 });
+
+test('Heavy Duty: semana de drop set e semana pico (rest-pause + drop)', () => {
+  const item = { sets: 1, reps: '10-12', warm: 1, rp: 1, ds: 1 };
+  const drop = heavyDutySets(item, { kg: 50, drop: true, step: 1 });
+  assert.deepEqual(drop.map((x) => x.kind), ['warmup', 'failure', 'drop']);
+  assert.equal(drop[2].kg, 40);
+  const peak = heavyDutySets(item, { kg: 50, rp: true, drop: true, step: 1 });
+  assert.deepEqual(peak.map((x) => x.kind), ['warmup', 'failure', 'restpause', 'drop']);
+  // exercício sem ds não ganha drop
+  assert.deepEqual(heavyDutySets({ sets: 1, warm: 0 }, { kg: 50, drop: true }).map((x) => x.kind), ['failure']);
+});

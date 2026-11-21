@@ -209,7 +209,7 @@ function StoreProgram({ k, close }) {
           <div class="week-plan">
             ${Array.from({ length: b.weeks }, (_, i) => {
               const g = weekGuide(b, i + 1);
-              return html`<div class=${`wp ${g.deload ? 'deload' : ''} ${g.test ? 'test' : ''}`}><i>S${i + 1}</i><b>${g.deload ? 'Deload' : g.test ? 'Teste' : g.rp ? 'Falha + RP' : g.rpe ? `RPE ${g.rpe}` : '—'}</b></div>`;
+              return html`<div class=${`wp ${g.deload ? 'deload' : ''} ${g.test ? 'test' : ''}`}><i>S${i + 1}</i><b>${g.deload ? 'Deload' : g.test ? 'Teste' : g.rp && g.drop ? 'RP + Drop' : g.rp ? 'Falha + RP' : g.drop ? 'Falha + Drop' : g.rpe ? `RPE ${g.rpe}` : '—'}</b></div>`;
             })}
           </div>
         </div>

@@ -184,7 +184,7 @@ export function startSession(workout, date = dateKey()) {
             rest: e.rest ?? 150, cue: e.note ?? '', prog,
             ...(e.section ? { section: e.section } : {}), ...(e.optional ? { optional: true } : {}), ...(e.superset ? { superset: e.superset } : {}),
             note: lastExerciseNote(s, e.exId),
-            sets: heavyDutySets(e, { deload, rp: inBlock && !!bp.guide.rp, toFailure: !rpeWeek || rpeWeek >= 10, kg: sug?.kg || null, step: step >= 5 ? 2.5 : 1 }),
+            sets: heavyDutySets(e, { deload, rp: inBlock && !!bp.guide.rp, drop: inBlock && !!bp.guide.drop, toFailure: !rpeWeek || rpeWeek >= 10, kg: sug?.kg || null, step: step >= 5 ? 2.5 : 1 }),
           };
         }
         return {

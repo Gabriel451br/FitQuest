@@ -138,3 +138,27 @@ test('todos os modelos: exercícios cadastrados, semanas e treinos coerentes', (
   assert.equal(weekGuide(t.program.blocks[2], 4).test, true);
   assert.equal(weekGuide(t.program.blocks[0], 4).deload, true);
 });
+
+test('Heavy Duty Express: bloco único 8+deload, só máquinas/halteres, alvo em todos os treinos', () => {
+  const t = instantiateProgram('heavy-duty-express', uid);
+  assert.equal(t.program.blocks.length, 1);
+  const b = t.program.blocks[0];
+  assert.equal(b.weeks, 9);
+  assert.equal(weekGuide(b, 9).deload, true);
+  assert.equal(weekGuide(b, 1).deload, false);
+  assert.ok(weekGuide(b, 4).rp && !weekGuide(b, 4).drop);
+  assert.ok(weekGuide(b, 6).drop && !weekGuide(b, 6).rp);
+  assert.ok(weekGuide(b, 8).rp && weekGuide(b, 8).drop);
+  const NO_BAR = ['agachamento', 'levantamento-terra', 'supino-reto', 'desenvolvimento', 'remada-curvada', 'rack-pull', 'push-press', 'power-clean', 'zercher'];
+  for (const w of t.workouts) {
+    assert.ok(w.exercises.length <= 8, `${w.name}: no máximo 8 exercícios`);
+    assert.ok(w.exercises.every((e) => !NO_BAR.includes(e.exId)), `${w.name}: sem barra montada`);
+    assert.ok(w.exercises.filter((e) => e.prog === 'hd').every((e) => e.sets === 1), 'uma série válida');
+    assert.ok(w.exercises.some((e) => e.exId.startsWith('panturrilha')), `${w.name}: panturrilha`);
+    assert.ok(w.exercises.some((e) => e.exId.startsWith('pescoco')), `${w.name}: pescoço`);
+    const hard = w.exercises.reduce((a, e) => a + (e.prog === 'hd' ? 1 : e.sets), 0);
+    assert.ok(hard <= 10, `${w.name}: poucas séries (${hard})`);
+  }
+  const all = t.workouts.flatMap((w) => w.exercises.map((e) => e.exId));
+  for (const id of ['encolhimento', 'rosca-scott', 'triceps-polia', 'rosca-punho', 'hip-thrust']) assert.ok(all.includes(id), id);
+});

@@ -22,8 +22,9 @@ const AUTO = (exId, sets, reps, o = {}) => ({ exId, prog: 'haack', sets, reps: S
 // Heavy Duty: aquecimentos + 1 série até a falha (rp = séries extras de rest-pause nas semanas de intensificação)
 const HD = (exId, reps, o = {}) => ({ exId, prog: 'hd', sets: 1, reps: String(reps), warm: 1, rest: 150, ...o });
 
-// semana: [de, até, RPE, texto, 'deload' | 'test' | 'rp' (intensificação com rest-pause)]
-const plan = (rows) => rows.map(([from, to, rpe, text, flag]) => ({ from, to, rpe, text, ...(flag === 'deload' ? { deload: true } : flag === 'test' ? { test: true } : flag === 'rp' ? { rp: true } : {}) }));
+// semana: [de, até, RPE, texto, flags] — flags separadas por vírgula: 'deload' | 'test' |
+// 'rp' (rest-pause após a série até a falha) | 'drop' (drop set após a série até a falha)
+const plan = (rows) => rows.map(([from, to, rpe, text, flag = '']) => ({ from, to, rpe, text, ...Object.fromEntries(String(flag).split(',').filter(Boolean).map((f) => [f.trim(), true])) }));
 
 // --- Dad Strength — War Machine ------------------------------------------------------------
 
@@ -352,6 +353,95 @@ PROGRAM_TEMPLATES['tronco-arvore'] = {
       ...(d.finisher ? { finisher: d.finisher } : {}), exercises: d.exercises,
     })),
   })),
+};
+
+// --- Heavy Duty Express — hipertrofia rápida 3×/semana ---------------------------------------
+// Bloco único: 8 semanas de treino + 1 de deload. Só máquinas, halteres e polia (nada de montar
+// barra), ~50 min. Estilo Dorian Yates: 1 série válida até a falha por exercício, técnicas
+// avançadas entrando aos poucos. Foco nos músculos-alvo: pescoço, trapézio, braços, antebraço,
+// glúteo e panturrilha — braços, panturrilha e pescoço em todos os treinos.
+
+const HDX = 'Série única até a falha';
+const HDX_ALVO = 'Músculos-alvo';
+const HDX_WARM = {
+  A: ['3 min bike ou elíptico', 'Rotação externa com elástico 1×15 e dead hang 20 s', 'Aquecimento da puxada: 2 séries leves (já estão no app)'],
+  B: ['3 min bike', 'Ponte de glúteo 1×15 e mobilidade de tornozelo', 'Aquecimento do leg press: 2 séries leves (já estão no app)'],
+  C: ['3 min bike ou remo', 'Rotação externa com elástico 1×15', 'Aquecimento do chest press: 2 séries leves (já estão no app)'],
+};
+
+PROGRAM_TEMPLATES['heavy-duty-express'] = {
+  version: 1,
+  name: 'Heavy Duty Express — 3× 50 min',
+  author: 'FitQuest', tagline: 'Chega, treina pesado, vai embora. Massa com máquinas e halteres.', cover: '#7a1f1f',
+  level: 'Intermediário', days: 3, sessionMin: 50, goals: ['hipertrofia', 'strongman'], equipment: 'Máquinas, polia e halteres',
+  schedule: ['Jiu', 'A', 'Jiu', 'B', 'Jiu?', 'C', 'Off'],
+  desc: 'Hipertrofia rápida em 3 treinos de ~50 min por semana, estilo Dorian Yates: aquecimento curto e UMA série até a falha por exercício, com rest-pause e drop set entrando ao longo do bloco. Só máquinas, polia e halteres — nada de montar barra, agachamento livre ou terra. Bloco único de 8 semanas + 1 de deload, com foco em pescoço, trapézio, braços, antebraço, glúteo e panturrilha.',
+  rules: [
+    'Cada exercício: aquecimento (quando indicado) + 1 série válida até a falha na faixa de reps. Falha = não sai mais nenhuma rep com técnica.',
+    'Bateu o topo da faixa → sobe a carga na próxima vez. O app já abre com a carga sugerida.',
+    'Descida controlada (2–3 s) em todas as reps. Sem roubar: na máquina dá para ir ao limite com segurança.',
+    'Técnicas avançadas só onde o app colocar: rest-pause (semanas 4–5), drop set (6–7), os dois na semana 8.',
+    'Descanso: 2 min entre exercícios. Treino inteiro em ~50 min — não fique no celular entre as séries.',
+    'Pescoço nunca vai à falha: lento e controlado.',
+    'Jiu pesado na véspera? Faça a semana como calibração (pare 1–2 reps antes da falha).',
+  ],
+  sections: [
+    { title: 'Técnicas avançadas', items: [
+      'Rest-pause: terminou a série até a falha, respire 15 s e faça mais reps com a mesma carga até falhar de novo.',
+      'Drop set: terminou a série até a falha, tire ~20% da carga (pino da máquina ou halter menor) e vá até a falha de novo, sem descanso.',
+      'Semana 8 (pico): rest-pause e drop set nos músculos-alvo. Depois, deload obrigatório.',
+    ] },
+    { title: 'Por que funciona', items: [
+      'Uma série realmente até a falha recruta todas as fibras: o estímulo vem da intensidade, não do volume.',
+      'Poucas séries = treino curto e recuperação rápida, que combina com o jiu.',
+      'Braços, panturrilha e pescoço em todos os treinos: músculo pequeno responde a frequência e consistência.',
+    ] },
+    { title: 'Alimentação', items: ['Superávit leve (+250–300 kcal) e proteína ~2 g/kg.', 'Durma 7–8 h: sem recuperação a intensidade não vem.', 'Meça braço, antebraço, panturrilha e pescoço na semana 1 e no deload.'] },
+  ],
+  blocks: [{
+    name: 'Bloco único — Heavy Duty 8 + deload', goal: 'hipertrofia', weeks: 9, progression: 'hd',
+    weekPlan: plan([
+      [1, 1, '9', 'Calibração: 1 série por exercício parando 1–2 reps antes da falha. Anote as cargas.'],
+      [2, 3, '10', 'Falha: 1 série até a falha na faixa de reps. Bateu o topo → sobe a carga.'],
+      [4, 5, '10', 'Falha + rest-pause nos músculos-alvo (15 s de pausa, mesma carga, até falhar de novo).', 'rp'],
+      [6, 7, '10', 'Falha + drop set nos músculos-alvo (−20% da carga, sem descanso, até falhar).', 'drop'],
+      [8, 8, '10', 'Semana pico: falha + rest-pause + drop set nos músculos-alvo.', 'rp,drop'],
+      [9, 9, '6', 'Deload: 1 série leve por exercício, longe da falha. Tire medidas e foto.', 'deload'],
+    ]),
+    objective: 'Massa muscular no menor tempo de academia: 7–8 exercícios por treino, uma série válida até a falha em cada (~10 séries pesadas por dia), máquinas e halteres para ir ao limite com segurança. Prioridade: trapézio, braços, antebraço, glúteo, panturrilha e pescoço.',
+    criteria: 'Ao fim: compare as cargas da semana 2 com as da semana 8 e as medidas. Recomece o bloco com as cargas novas ou volte para um bloco de força.',
+    workouts: [
+      { name: 'A — Costas, trapézio e bíceps', warmup: HDX_WARM.A, sessionMin: 50, short: '35 min: puxada, remada, encolhimento, rosca Scott e panturrilha.', exercises: [
+        HD('puxada-neutra', '6-10', { section: HDX, warm: 2, rest: 120, note: 'Peito alto, puxa com os cotovelos até o queixo. Pausa embaixo.' }),
+        HD('remada-apoio', '8-10', { section: HDX, warm: 0, rest: 120, note: 'Peito apoiado: vai ao limite sem roubar. Aperta 1 s atrás.' }),
+        HD('encolhimento', '10-12', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 120, note: 'Halteres ou máquina. Pausa de 2 s no topo; use straps para a pegada não limitar.' }),
+        HD('rosca-scott', '6-8', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 120, note: 'Máquina ou halter. Descida de 3 s, sem tirar o braço do apoio.' }),
+        HD('rosca-martelo', '8-10', { section: HDX_ALVO, warm: 0, rp: 1, rest: 90, note: 'Braquial e antebraço: o que dá o braço "grosso".' }),
+        HD('rosca-punho', '12-20', { section: HDX_ALVO, warm: 0, ds: 1, rest: 60, note: 'Antebraço apoiado no banco, amplitude total.' }),
+        HD('panturrilha-sentado', '12-15', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 90, note: 'Sóleo. Pausa de 2 s embaixo, alongado, em toda rep.' }),
+        E('pescoco', 2, '15', { section: HDX_ALVO, note: '4 direções com anilha ou máquina. Lento, nunca à falha.', rest: 45 }),
+      ] },
+      { name: 'B — Pernas, glúteo e panturrilha', warmup: HDX_WARM.B, sessionMin: 50, short: '35 min: leg press, hip thrust, flexora e panturrilha.', exercises: [
+        HD('leg-press', '10-15', { section: HDX, warm: 2, rest: 150, note: 'Pés altos e afastados para mais glúteo. Sem travar o joelho no topo.' }),
+        HD('hip-thrust', '8-12', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 120, note: 'Máquina de glúteo ou banco + halter. Pausa de 1 s travado no topo.' }),
+        HD('mesa-flexora', '10-12', { section: HDX, warm: 1, ds: 1, rest: 90, note: 'Excêntrico de 3 s: posterior forte protege o joelho.' }),
+        HD('abducao', '15-20', { section: HDX_ALVO, warm: 0, rp: 1, rest: 60, note: 'Tronco inclinado à frente para pegar o glúteo médio.' }),
+        HD('panturrilha-leg', '12-15', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 90, note: 'No leg press. Pausa embaixo, sobe na ponta e aperta 1 s.' }),
+        E('farmer-walk', 2, '30m', { section: HDX_ALVO, note: 'Halteres pesados: trapézio e antebraço. A pegada tem que quase abrir.', rest: 90 }),
+        E('pescoco-iso', 3, '10s', { section: HDX_ALVO, note: 'Isometria 10 s por direção (mão na testa, nuca e laterais).', rest: 30 }),
+      ] },
+      { name: 'C — Peito, ombros e tríceps', warmup: HDX_WARM.C, sessionMin: 50, short: '35 min: chest press, lateral, tríceps, rosca e panturrilha.', exercises: [
+        HD('chest-press', '6-10', { section: HDX, warm: 2, rest: 120, note: 'Escápulas travadas. Descida de 3 s até alongar o peito.' }),
+        HD('desenvolvimento-halter', '6-10', { section: HDX, warm: 1, rest: 120, note: 'Sentado, encosto alto. Halteres descem até a altura das orelhas.' }),
+        HD('elevacao-lateral', '12-15', { section: HDX_ALVO, warm: 0, rp: 1, ds: 1, rest: 90, note: 'Ombro largo = shape de strongman. Cotovelo levemente flexionado.' }),
+        HD('triceps-polia', '8-12', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 90, note: 'Cotovelos colados no corpo. Trava embaixo 1 s.' }),
+        HD('triceps-frances', '10-12', { section: HDX_ALVO, warm: 0, rest: 90, note: 'Na polia, acima da cabeça: cabeça longa, a maior parte do braço.' }),
+        HD('rosca-inclinada', '8-10', { section: HDX_ALVO, warm: 0, ds: 1, rest: 90, note: 'Banco a 45°, braço alongado atrás do corpo.' }),
+        HD('panturrilha-pe', '10-12', { section: HDX_ALVO, warm: 1, rp: 1, ds: 1, rest: 90, note: 'Máquina em pé. Alonga 2 s embaixo em toda rep.' }),
+        E('pescoco', 2, '15', { section: HDX_ALVO, note: '4 direções, lento, nunca à falha.', rest: 45 }),
+      ] },
+    ],
+  }],
 };
 
 // "3–4 min" → 210 s; "90 s entre rounds" → 90

@@ -119,10 +119,11 @@ export function prescribedSets(rx, step = 2.5) {
 /**
  * Heavy Duty (estilo Dorian Yates): aquecimentos progressivos + série(s) até a falha.
  * item: { sets (séries válidas, padrão 1), warm (0–2 aquecimentos), rp (séries de rest-pause) }
+ * item.ds = nº de drop sets (−20% cada) nas semanas com drop.
  * opts: kg = carga da série válida (sugestão pela última vez); toFailure=false → "top" (semana de
- * calibração, para antes da falha); rp=true → semana de intensificação; deload → 1 série leve.
+ * calibração, para antes da falha); rp / drop = semana com rest-pause / drop set; deload → 1 série leve.
  */
-export function heavyDutySets(item, { deload = false, rp = false, toFailure = true, kg = null, step = 1 } = {}) {
+export function heavyDutySets(item, { deload = false, rp = false, drop = false, toFailure = true, kg = null, step = 1 } = {}) {
   const r = (f) => (kg ? Math.max(step, Math.round((kg * f) / step) * step) : null);
   const mk = (kind, k, tReps) => ({ kg: k, reps: null, rpe: null, pct: null, done: false, kind, ...(tReps ? { tReps } : {}), auto: { kg: true } });
   const warm = item.warm ?? 1;
@@ -131,6 +132,8 @@ export function heavyDutySets(item, { deload = false, rp = false, toFailure = tr
   const n = Math.max(1, item.sets || 1);
   for (let i = 0; i < n; i++) out.push(mk(deload ? 'work' : toFailure ? 'failure' : 'top', deload ? r(0.9) : kg, item.reps ? String(item.reps) : null));
   if (rp && !deload) for (let i = 0; i < (item.rp || 0); i++) out.push(mk('restpause', kg, '2-4'));
+  // drop set: logo após a falha, −20% da carga e até falhar de novo (cada drop mais 20%)
+  if (drop && !deload) for (let i = 0; i < (item.ds || 0); i++) out.push(mk('drop', r(0.8 ** (i + 1)), 'falha'));
   return out;
 }
 

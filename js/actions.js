@@ -178,13 +178,14 @@ export function startSession(workout, date = dateKey()) {
         if (prog === 'hd') {
           // Heavy Duty: aquecimentos + 1 série até a falha, já com a carga sugerida pela última vez
           const step = loadStep(s, e.exId);
-          const sug = suggestProgression('hd', lastPerformance(s, e.exId), e.reps, { step });
+          const lp = lastPerformance(s, e.exId);
+          const sug = suggestProgression('hd', lp, e.reps, { step });
           return {
             exId: e.exId, target: e.reps, targetRpe: null, targetPct: null, targetKg: null,
             rest: e.rest ?? 150, cue: e.note ?? '', prog,
             ...(e.section ? { section: e.section } : {}), ...(e.optional ? { optional: true } : {}), ...(e.superset ? { superset: e.superset } : {}),
             note: lastExerciseNote(s, e.exId),
-            sets: heavyDutySets(e, { deload, rp: inBlock && !!bp.guide.rp, drop: inBlock && !!bp.guide.drop, toFailure: !rpeWeek || rpeWeek >= 10, kg: sug?.kg || null, step: step >= 5 ? 2.5 : 1 }),
+            sets: heavyDutySets(e, { deload, rp: inBlock && !!bp.guide.rp, drop: inBlock && !!bp.guide.drop, toFailure: !rpeWeek || rpeWeek >= 10, kg: (deload ? lp?.topKg : sug?.kg) || null, step: step >= 5 ? 2.5 : 1 }),
           };
         }
         return {

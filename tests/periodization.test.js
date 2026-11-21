@@ -169,8 +169,8 @@ test('Heavy Duty: aquecimentos + 1 série até a falha, rest-pause e deload', ()
   // progressão: topo da faixa na série até a falha → sobe; senão mantém e busca +1 rep
   const up = suggestProgression('hd', { sets: [{ kg: 40, reps: 8, kind: 'failure' }, { kg: 40, reps: 3, kind: 'restpause' }] }, '6-8', { step: 2 });
   assert.equal(up.kg, 42);
-  const keep = suggestProgression('hd', { sets: [{ kg: 40, reps: 6, kind: 'failure' }] }, '6-8', { step: 2 });
-  assert.deepEqual([keep.kg, keep.reps], [40, 7]);
+  const inRange = suggestProgression('hd', { sets: [{ kg: 40, reps: 6, kind: 'failure' }] }, '6-8', { step: 2 });
+  assert.equal(inRange.kg, 41);
   // vindo do bloco anterior (3 séries normais): usa a mais pesada
   assert.equal(suggestProgression('hd', { sets: [{ kg: 30, reps: 8 }, { kg: 30, reps: 8 }] }, '6-8', { step: 2 }).kg, 32);
 });
@@ -182,14 +182,14 @@ test('top set autorregulado respeita o teto de RPE (básicos sem falha no Heavy 
   assert.equal(prescribe({ prog: 'haack', sets: 2, reps: '6', rpeMax: 8 }, { rpe: 8, oneRm: 150 }).groups[0].rpe, 8);
 });
 
-test('Tronco v2 → v3 mantém bloco, semana e treino feito', () => {
+test('Tronco v2 → versão atual mantém bloco, semana e treino feito', () => {
   const { s, trProg } = legacyAccount();
   upgradeProgram(s, trProg, { ...PROGRAM_TEMPLATES['tronco-arvore'], version: 2 });
   trProg.templateVersion = 2;
   const ids = trProg.blocks.map((b) => [b.id, ...b.workoutIds]);
   const next = blockProgress(s, trProg).nextWorkoutId;
   assert.ok(upgradeProgram(s, trProg));
-  assert.equal(trProg.templateVersion, 3);
+  assert.equal(trProg.templateVersion, PROGRAM_TEMPLATES['tronco-arvore'].version);
   assert.deepEqual(trProg.blocks.map((b) => [b.id, ...b.workoutIds]), ids);
   const bp = blockProgress(s, trProg);
   assert.deepEqual([bp.week, bp.sessions, bp.nextWorkoutId], [1, 1, next]);
@@ -214,4 +214,20 @@ test('Heavy Duty: semana de drop set e semana pico (rest-pause + drop)', () => {
   assert.deepEqual(peak.map((x) => x.kind), ['warmup', 'failure', 'restpause', 'drop']);
   // exercício sem ds não ganha drop
   assert.deepEqual(heavyDutySets({ sets: 1, warm: 0 }, { kg: 50, drop: true }).map((x) => x.kind), ['failure']);
+});
+
+test('Heavy Duty: progressão semanal de carga (+2,5% na faixa, +5% no topo, mantém/reduz abaixo)', () => {
+  const next = (kg, reps, range = '8-12', step = 2) => suggestProgression('hd', { sets: [{ kg, reps, kind: 'failure' }] }, range, { step }).kg;
+  // exemplo do programa: 40×11 → 41 → 42 → 43 → 44 → (44×7) mantém → 44×8 → 45
+  assert.equal(next(40, 11), 41);
+  assert.equal(next(41, 10), 42);
+  assert.equal(next(42, 9), 43);
+  assert.equal(next(43, 8), 44);
+  assert.equal(next(44, 7), 44);
+  assert.equal(next(44, 8), 45);
+  assert.equal(next(40, 12), 42, 'topo da faixa: +5%');
+  assert.equal(next(40, 5), 38, '3+ reps abaixo: −5%');
+  // máquina de perna: passo de 2,5 kg; 200 kg → +5 kg (2,5%)
+  assert.equal(next(200, 12, '10-15', 5), 205);
+  assert.equal(next(60, 13, '12-15', 5), 62.5);
 });

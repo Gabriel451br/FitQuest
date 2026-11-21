@@ -186,7 +186,7 @@ const X = 'Explosão';
 const HDS = 'Heavy Duty · 1 série até a falha';
 const J = 'Funcional · jiu';
 const T = 'Tronco de árvore · músculos-alvo';
-const HD_CUE = 'Heavy Duty: aqueça e faça 1 série até a falha dentro da faixa. Bateu o topo da faixa → sobe a carga.';
+const HD_CUE = 'Heavy Duty: aqueça e faça 1 série até a falha dentro da faixa. A carga sobe toda semana (+2,5% na faixa, +5% no topo).';
 
 // Conceito: shape do Mariusz Pudzianowski (pescoço, trapézio, braços, antebraço, glúteo e
 // panturrilha) + força funcional nos básicos e no jiu. Braços e panturrilha têm trabalho de
@@ -325,7 +325,7 @@ const TRONCO_BLOCKS = [
 ];
 
 PROGRAM_TEMPLATES['tronco-arvore'] = {
-  version: 3,
+  version: 4,
   name: 'Tronco de Árvore — Strongman × Jiu-Jítsu',
   author: 'Protocolo · Nov 2026', tagline: 'Shape do Mariusz Pudzianowski com força que funciona no tatame.', cover: '#e0551f',
   level: 'Intermediário', days: 3, sessionMin: 65, goals: ['strongman', 'forca', 'hipertrofia', 'jiu-jitsu'], equipment: 'Academia + halteres pesados',
@@ -334,7 +334,7 @@ PROGRAM_TEMPLATES['tronco-arvore'] = {
   rules: [
     'Músculos-alvo: pescoço, trapézio, braços, antebraço, glúteo e panturrilha. Braços e panturrilha entram em todos os blocos — precisam de volume e consistência.',
     'Bloco 1 (Base): básicos em %RM, +2,5% por semana, longe da falha. As cargas saem do seu 1RM (Progresso → Meus 1RM, ou estimado pelo histórico).',
-    'Bloco 2 (Heavy Duty): 1–2 aquecimentos e UMA série até a falha por exercício. Bateu o topo da faixa de reps → sobe a carga. Menos séries, mais intensidade, mais descanso.',
+    'Bloco 2 (Heavy Duty): 1–2 aquecimentos e UMA série até a falha por exercício. Carga sobe toda semana: +2,5% dentro da faixa de reps, +5% no topo. Menos séries, mais intensidade, mais descanso.',
     'Bloco 3 (Jiu): explosivo primeiro e descansado, depois top set em RPE + back-offs. Qualidade e velocidade, não cansaço.',
     'Básicos de barra livre e pescoço nunca vão à falha. Falha é para máquinas, halteres, braços e panturrilha.',
     'Joelho manda — teste das 24 h: inchaço ou dor acima de 3/10 no dia seguinte → reduza 10% o agachamento ou troque por leg press. Nada de pivô ou torção sob carga.',
@@ -370,7 +370,7 @@ const HDX_WARM = {
 };
 
 PROGRAM_TEMPLATES['heavy-duty-express'] = {
-  version: 1,
+  version: 2,
   name: 'Heavy Duty Express — 3× 50 min',
   author: 'FitQuest', tagline: 'Chega, treina pesado, vai embora. Massa com máquinas e halteres.', cover: '#7a1f1f',
   level: 'Intermediário', days: 3, sessionMin: 50, goals: ['hipertrofia', 'strongman'], equipment: 'Máquinas, polia e halteres',
@@ -378,7 +378,7 @@ PROGRAM_TEMPLATES['heavy-duty-express'] = {
   desc: 'Hipertrofia rápida em 3 treinos de ~50 min por semana, estilo Dorian Yates: aquecimento curto e UMA série até a falha por exercício, com rest-pause e drop set entrando ao longo do bloco. Só máquinas, polia e halteres — nada de montar barra, agachamento livre ou terra. Bloco único de 8 semanas + 1 de deload, com foco em pescoço, trapézio, braços, antebraço, glúteo e panturrilha.',
   rules: [
     'Cada exercício: aquecimento (quando indicado) + 1 série válida até a falha na faixa de reps. Falha = não sai mais nenhuma rep com técnica.',
-    'Bateu o topo da faixa → sobe a carga na próxima vez. O app já abre com a carga sugerida.',
+    'Progressão semanal de carga: ficou dentro da faixa de reps → +2,5% na semana seguinte; bateu o topo → +5%; abaixo do mínimo → mantém; 3 ou mais reps abaixo → −5%. O app já abre com a carga nova.',
     'Descida controlada (2–3 s) em todas as reps. Sem roubar: na máquina dá para ir ao limite com segurança.',
     'Técnicas avançadas só onde o app colocar: rest-pause (semanas 4–5), drop set (6–7), os dois na semana 8.',
     'Descanso: 2 min entre exercícios. Treino inteiro em ~50 min — não fique no celular entre as séries.',
@@ -386,6 +386,14 @@ PROGRAM_TEMPLATES['heavy-duty-express'] = {
     'Jiu pesado na véspera? Faça a semana como calibração (pare 1–2 reps antes da falha).',
   ],
   sections: [
+    { title: 'Progressão semanal de carga', items: [
+      'Semana 1: calibração — escolha a carga que deixa 1–2 reps na reserva dentro da faixa.',
+      'Semanas 2 a 8: a carga sobe toda semana. Ficou dentro da faixa de reps → +2,5%. Bateu o topo da faixa → +5%.',
+      'Fez menos reps que o mínimo da faixa → mantém a carga até voltar para a faixa. 3 ou mais reps abaixo → −5%.',
+      'Exemplo (faixa 8–12): sem. 2 → 40 kg × 11 · sem. 3 → 41 kg × 10 · sem. 4 → 42 kg × 9 · sem. 5 → 43 kg × 8 · sem. 6 → 44 kg × 7 (abaixo) · sem. 7 → 44 kg × 8 · sem. 8 → 45 kg.',
+      'Semana 9 (deload): −10% e longe da falha.',
+      'Halter ou pino não tem o valor exato? Use o mais próximo e compense nas reps.',
+    ] },
     { title: 'Técnicas avançadas', items: [
       'Rest-pause: terminou a série até a falha, respire 15 s e faça mais reps com a mesma carga até falhar de novo.',
       'Drop set: terminou a série até a falha, tire ~20% da carga (pino da máquina ou halter menor) e vá até a falha de novo, sem descanso.',
@@ -402,11 +410,11 @@ PROGRAM_TEMPLATES['heavy-duty-express'] = {
     name: 'Bloco único — Heavy Duty 8 + deload', goal: 'hipertrofia', weeks: 9, progression: 'hd',
     weekPlan: plan([
       [1, 1, '9', 'Calibração: 1 série por exercício parando 1–2 reps antes da falha. Anote as cargas.'],
-      [2, 3, '10', 'Falha: 1 série até a falha na faixa de reps. Bateu o topo → sobe a carga.'],
-      [4, 5, '10', 'Falha + rest-pause nos músculos-alvo (15 s de pausa, mesma carga, até falhar de novo).', 'rp'],
-      [6, 7, '10', 'Falha + drop set nos músculos-alvo (−20% da carga, sem descanso, até falhar).', 'drop'],
-      [8, 8, '10', 'Semana pico: falha + rest-pause + drop set nos músculos-alvo.', 'rp,drop'],
-      [9, 9, '6', 'Deload: 1 série leve por exercício, longe da falha. Tire medidas e foto.', 'deload'],
+      [2, 3, '10', 'Falha: 1 série até a falha na faixa de reps. A partir daqui a carga sobe toda semana (+2,5%; +5% se bateu o topo).'],
+      [4, 5, '10', '+2,5% de carga. Falha + rest-pause nos músculos-alvo (15 s de pausa, mesma carga, até falhar de novo).', 'rp'],
+      [6, 7, '10', '+2,5% de carga. Falha + drop set nos músculos-alvo (−20% da carga, sem descanso, até falhar).', 'drop'],
+      [8, 8, '10', 'Semana pico: carga mais alta do bloco, falha + rest-pause + drop set nos músculos-alvo.', 'rp,drop'],
+      [9, 9, '6', 'Deload: 1 série com −10% da carga, longe da falha. Tire medidas e foto.', 'deload'],
     ]),
     objective: 'Massa muscular no menor tempo de academia: 7–8 exercícios por treino, uma série válida até a falha em cada (~10 séries pesadas por dia), máquinas e halteres para ir ao limite com segurança. Prioridade: trapézio, braços, antebraço, glúteo, panturrilha e pescoço.',
     criteria: 'Ao fim: compare as cargas da semana 2 com as da semana 8 e as medidas. Recomece o bloco com as cargas novas ou volte para um bloco de força.',

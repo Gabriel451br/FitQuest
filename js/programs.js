@@ -22,7 +22,7 @@ export const PROGRESSIONS = {
   linear: { label: 'Linear', short: 'Linear', desc: 'Completou todas as séries e reps → +carga na próxima sessão.' },
   rpe: { label: 'Autorregulada (RPE)', short: 'RPE', desc: 'Ajusta a carga pelo RPE da última vez: abaixo do alvo sobe, acima desce.' },
   explosive: { label: 'Explosivos', short: 'Explosivo', desc: 'Poucas reps rápidas, sem falha. Só sobe a carga quando a execução estiver consistente.' },
-  hd: { label: 'Heavy Duty (1 série até a falha)', short: 'HD', desc: 'Estilo Dorian Yates: 1–2 aquecimentos e uma única série até a falha. Bateu o topo da faixa de reps → sobe a carga na próxima.' },
+  hd: { label: 'Heavy Duty (1 série até a falha)', short: 'HD', desc: 'Estilo Dorian Yates: 1–2 aquecimentos e uma única série até a falha. Carga sobe toda semana: +2,5% se ficou na faixa de reps, +5% se bateu o topo; abaixo da faixa mantém, 3+ reps abaixo reduz 5%.' },
   // por %RM / RPE (cargas calculadas pelo 1RM): %RM linear, 5/3/1, Juggernaut, autorregulada (Haack)
   ...SCHEMES,
 };
@@ -131,11 +131,24 @@ export function suggestProgression(prog, last, repRange, { step = 2.5, targetRpe
         const kg = Math.max(kg0 + step, round(rm / (1 + range.max / 30), fine));
         return { kg, reps: range.min, text: `Última vez ${kg0} kg × ${done}: para falhar em ${range.min}–${range.max} reps use ~${kg} kg` };
       }
+      // progressão semanal de carga: ~2,5% por semana enquanto as reps ficam na faixa
+      const r1 = (x) => Math.round(x * 10) / 10;
+      const fine = step >= 5 ? 2.5 : 1;
+      const inc = Math.max(fine, round(kg0 * 0.025, fine));
+      if (!kg0) return { kg: 0, reps: range.min, text: `Escolha uma carga para falhar entre ${range.min} e ${range.max} reps` };
       if (done >= range.max) {
-        const kg = kg0 + step;
-        return { kg, reps: range.min, text: `Fez ${done} reps (topo da faixa): suba para ${kg} kg e vá até a falha (${range.min}–${range.max})` };
+        const kg = r1(kg0 + 2 * inc);
+        return { kg, reps: range.min, text: `Topo da faixa (${done} reps): +${r1(2 * inc)} kg (~5%) → ${kg} kg, até a falha (${range.min}–${range.max})` };
       }
-      return { kg: kg0, reps: Math.min(range.max, done + 1), text: `Mantenha ${kg0} kg: série única até a falha, buscando ${Math.min(range.max, done + 1)}+ reps` };
+      if (done >= range.min) {
+        const kg = r1(kg0 + inc);
+        return { kg, reps: Math.max(range.min, done - 1), text: `Progressão semanal: +${inc} kg (~2,5%) → ${kg} kg; mire ${Math.max(range.min, done - 1)}+ reps até a falha` };
+      }
+      if (done <= range.min - 3) {
+        const kg = r1(Math.max(fine, round(kg0 * 0.95, fine)));
+        return { kg, reps: range.min, text: `Só ${done} reps (faixa ${range.min}–${range.max}): reduza 5% → ${kg} kg` };
+      }
+      return { kg: kg0, reps: range.min, text: `Abaixo da faixa (${done} reps): mantenha ${kg0} kg até fazer ${range.min}+ reps` };
     }
     case 'explosive': {
       const consistent = sets.every((x) => reps(x) >= (range?.min ?? 1) && (x.rpe == null || Number(x.rpe) <= 7));
